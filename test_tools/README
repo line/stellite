@@ -1,0 +1,4 @@
+1. Long-term test
+1.1 MAC
+- Compile: clang++ test_client.cc -fobjc-arc -I../../../liblinehttp/include -o test_client -llinehttp -lresolv -L../../../liblinehttp/prebuilt/mac -framework SystemConfiguration -framework ApplicationServices -framework IOKit -framework Security -framework AppKit -stdlib=libstdc++ 
+- Run: ./test_client <url> <request per second> <total test time(second)>

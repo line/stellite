@@ -1,0 +1,15 @@
+{
+  "name": "quic_test_facility",
+  "description": "Unittest for QUIC server and client",
+  "author": {
+    "name": "sung-ho song",
+    "email": "snibug@linecorp.com"
+  },
+  "devDependencies": {
+    "express": "4.13.1",
+    "http2": "3.2.0",
+    "http-proxy": "1.12.0",
+    "minimist": "1.2.0",
+    "spdy": "2.1.0"
+  }
+}
