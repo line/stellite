@@ -1,0 +1,12 @@
+diff --git build/all.gyp build/all.gyp
+index d8f0d249..dfa0d35 100644
+--- build/all.gyp
++++ build/all.gyp
+@@ -39,6 +39,7 @@
+         '../ui/display/display.gyp:display_unittests',
+         '../ui/snapshot/snapshot.gyp:*',
+         '../url/url.gyp:*',
++        '../stellite/stellite.gyp:*',
+       ],
+       'conditions': [
+         ['OS!="ios" and OS!="mac"', {
