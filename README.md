@@ -1,16 +1,16 @@
 # Welcome to Stellite
 
-Stellite project is an open-source library that offers an easy way to develop, build, and implement client/server running primarily over the QUIC protocol, a network protocol developed by Google as part of the Chromium project. It aims to provide fast and stable internet connection for mobile applications.
+Stellite project is a client library and server application that offers an easy way to develop, build, and implement client/server running primarily over the QUIC protocol developed by Google as part of the Chromium project. It aims to provide fast and stable wireless connectivity to LINE games (mobile applications).
 
-Stellite is an open-source project developed by [LINE Corporation](http://linecorp.com/en/) based on the Chromium project.
+Stellite is an open-source project developed by [LINE Corporation](http://linecorp.com/en/).
 
 Licensed under [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 ## Why QUIC?
 
-Today, mobile application developers are struggling with challenges posed by constantly changing network environments; long connection time (RTT overhead), packet loss, handover failures, head-of-line blocking, duplicate congestion window, to name a few.
+Today, mobile application developers are struggling with challenges posed by constantly changing mobile network environments; long connection time (RTT overhead), packet loss, handover failures, head-of-line blocking, duplicate congestion window, to name a few.
 
-QUIC is a new transport protocol that can solve these problems by providing essential featrues as follows.
+QUIC is a new transport protocol that can solve these problems by providing essential features as follows.
 
 * Dramatically reduced connection establishment time
 * Improved congestion control
@@ -19,11 +19,11 @@ QUIC is a new transport protocol that can solve these problems by providing esse
 * Connection migration
 * TLS-level security
 
-See [QUIC docs](https://www.chromium.org/quic) by Google for more details.
+See [QUIC docs](https://www.chromium.org/quic) provided by Google for more details.
 
 ## Stellite project stack
 
-Stellite consists of two components: QUIC server and client library.
+Stellite consists of a QUIC server extension and a client library on top of Chromium.
 
 
 <img src="./res/architecture_stellite.png">
@@ -31,22 +31,22 @@ Stellite consists of two components: QUIC server and client library.
 <img src="./res/architecture_client.jpg">
 
 
-### QUIC server
+### Stellite QUIC server
 
-QUIC server is an extension of the Chromium's QUIC simple server. It uses the QUIC protocol to process HTTP requests.
+Stellite QUIC server is an extension of the Chromium's QUIC simple server. It uses the QUIC protocol to process HTTP requests.
 
 * Supports reverse proxy
 * Supports multi-threading for enhanced performance
 * Supports file-based logging
 
-### Client library
+### Stellite client library
 
-Client library provides a protocol negotiation layer that can help a web service choose an appropriate protocol and reduce latency.
+Stellite client library provides a protocol negotiation layer (ALPN?) so that a web service (mobile application?) can choose the most expedient protocol.
 
-* Supports HTTP(S), SPDY, HTTP2, QUIC
+* Supports QUIC, SPDY, HTTP, HTTPS, HTTP2
 * Easy to build, link, and integrate with mobile applications
 * Includes a thread model to run network on a thread
-* Uses forward declarations to avoid exposing Chromium interface (No need to worry about implementing Chromium)
+* Uses a forward declaration to avoid exposing Chromium interface (Uses a forward declaration to separate the Stellite implementation from the Chromium interface)
 
 ## Getting started
 
@@ -56,7 +56,6 @@ Client library provides a protocol negotiation layer that can help a web service
 
 ## Read more
 
-* [Stellite design document (Client-side)] (./DESIGN.md)
 * Release notes
 * [Contributing](./CONTRIBUTE.md)
 * [About QUIC](https://www.chromium.org/quic)
