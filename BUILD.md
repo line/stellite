@@ -37,12 +37,12 @@ optional arguments:
 
 ### Build example
 
-Build Stellite to create client library:
+Client build:
 ```bash
 ./tools/build.py --target-platform=android stellite
 ```
 
-Build QUIC server to create server executables:
+Server build:
 ```bash
 ./tools/build --target-platform=linux quic_server
 ```
