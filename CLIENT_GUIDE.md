@@ -13,7 +13,7 @@ C++ client library to use with the Chromium's QUIC protocol module. The library 
 # HttpClientContext
 
 
-Represents a class that contains context information required to process HTTP requests. It has factory functions for creating (handle, manipulate, control) HttpClient xxx. As it uses a network thread, it requires explicit initialization and destroyer function.
+Represents a class that contains context information required to process HTTP requests. It has factory functions for creating HttpClient objects. As it uses a network thread, it requires explicit initialization and destroyer function.
 
 ```c++
 class STELLITE_EXPORT HttpClientContext {
@@ -69,23 +69,23 @@ class STELLITE_EXPORT HttpClientContext {
 | Function | Description |
 | --- | --- |
 | CreateHttpClient | A factory function that creates an HttpClient object. HttpClientContext has the ownership of the object. |
-| ReleaseHttpClient | Releases an HttpClient object. The object is not deleted directly because HttpClientContext has its ownership. |
-| Initialize | Initializes context xx on a background thread, such as hostname resolver, SSL config service, certificate verifier, proxy service, and protocols. |
+| ReleaseHttpClient | Releases an HttpClient object. An object is not deleted directly because HttpClientContext has its ownership. |
+| Initialize | Initializes HttpClient context on a background thread, such as hostname resolver, SSL config service, certificate verifier, proxy service, and protocols. |
 | TearDown | Releases all context resources on a background thread.|
 | Cancel | Cancels all requests that have generated HttpClient objects from HttpClientContext.|
-| ResetCertBundle | Use this function to reset CA certificate if you want to enable the OpenSSL option in the Stellite build. |
-| InitVM | An initialization function used in a Android system. This function must be called when an application begins.|
+| ResetCertBundle | A function that resets a CA certificate bundle. To verify a certificate using a CA certificate bundle, you have to enable the OpenSSL option in the Stellite build. |
+| InitVM | An initialization function used in an Android system. This function must be called when an application begins.|
 
 ### Parameter
 
 |Option | Command | Default value | Example |
 | --- | --- | --- | --- |
-| `using_quic` | Use a QUIC protocol. When set to true, (주어) connects to QUIC server via QUIC Discovery. When Alt-Svc header is specified as quic="hostname:port", QUIC Discovery establishes a QUIC connection using the specified QUIC server hostname and the UDP port.  | false | using_quic = true |
-| `using_spdy` | Use a SPDY 3.1 protocol. When set to true, NPN (Next Protocol Negotiation) attempts to establish a SPDY connection.  | false | using_spdy = true |
-| `using_http2` | Use an HTTP2 protocol. When set to true, NPN (Next Protocol Negotiation) and ALPN (Application Layer Protocol Negotiation) attempt to establish an HTTP2 connection.  | false | using_http2 = true |
-| `using_quic_disk_cache` | Store QUIC server information on a disk cache. When set to true, a file cache is stored in the .http_cache directory within a mobile sandbox(?). When server information is cached, a client can attempt to make a request to a server with 0-RTT. | false | using_quic_disk_cache = true |
-| `proxy_host` | Allow a client to use a proxy. When proxy_host is set to "http://127.0.0.1:9000", (주어) attempts to connect to 127.0.0.1 number 9000 proxy server. If the URL used for the request is https://stellite.io, it is a proxy server, not an HTTP client, that makes the connection and processes the request. | "" | proxy_host = "http://127.0.0.1:8080" |
-| `origin_to_force_quic_on` | Force to use a QUIC protocol. If you specify "stellite.com:443" and make a client request to URL https://stellite.io:443, you can directly (동사) to a QUIC server. If you want to use this URL, you need to provide stellite.io certificate and key file to a QUIC server. | "" | origin_to_force_quic_on = "https://stellite.io:443" |
+| `using_quic` | Use the QUIC protocol. When set to true, a client connects to the QUIC server through QUIC Discovery. When Alt-Svc header is specified as quic="hostname:port", QUIC Discovery establishes a QUIC connection using the specified QUIC server hostname and the UDP port.  | false | using_quic = true |
+| `using_spdy` | Use the SPDY 3.1 protocol. When set to true, a client attempts to establish a SPDY connection during NPN (Next Protocol Negotiation).  | false | using_spdy = true |
+| `using_http2` | Use the HTTP2 protocol. When set to true, a client attempts to establish an HTTP2 connection during NPN (Next Protocol Negotiation) and ALPN (Application Layer Protocol Negotiation).  | false | using_http2 = true |
+| `using_quic_disk_cache` | Store QUIC server information on a disk cache. When set to true, the information is stored in the .http_cache directory within an application sandbox storage. When server information is cached, a client can attempt to make a request to a server with 0-RTT. | false | using_quic_disk_cache = true |
+| `proxy_host` | Allow a client to use a proxy. When proxy_host is set to "http://127.0.0.1:9000", a client attempts to connect to 127.0.0.1:9000 proxy server. This option is a forward proxy feature. | "" | proxy_host = "http://127.0.0.1:8080" |
+| `origin_to_force_quic_on` | Force to use the QUIC protocol. If you specify "stellite.com:443", all requests for the specified URI are processed using the QUIC protocol. If you want to use this URL, you need to provide stellite.io certificate and key file to the QUIC server. | "" | origin_to_force_quic_on = "https://stellite.io:443" |
 
 ---
 
@@ -93,7 +93,7 @@ class STELLITE_EXPORT HttpClientContext {
 
 ## HttpResponseDelegate
 
- Represents an interface that invokes client callbacks for HTTP responses.
+ Represents an interface that invokes client callbacks when receiving HTTP responses from HTTP clients.
 
 ```c++
 class STELLITE_EXPORT HttpResponseDelegate {
@@ -116,8 +116,8 @@ class STELLITE_EXPORT HttpResponseDelegate {
 
 | Function | Description |
 | --- | --- |
-| OnHttpResponse()| A callback function invoked asynchronously from a network thread when a response to HttpClient::Request() is available (ready). |
-| OnHttpStream()| A callback function invoked asynchronously from a network thread when a response to HttpClient::Stream() is available (ready). |
+| OnHttpResponse()| A callback function invoked asynchronously from a network thread when receiving responses for HttpClient::Request() from a web server. |
+| OnHttpStream()| A callback function invoked asynchronously from a network thread when receiving responses for HttpClient::Stream() from a web server. |
 | OnHttpError()| A callback function invoked asynchronously when an error occurs after calling HttpClient::Request() or HttpClient::Stream(). |
 
 ### Parameter
@@ -211,7 +211,7 @@ class STELLITE_EXPORT HttpRequestHeader {
 
 | Function | Description |
 | --- | --- |
-| SetRawHeader() | Initializes an HttpHeader with the header's full-text. It contains a delimiter [CR]LR and can convert to a key-value data structure. |
+| SetRawHeader() | Initializes an HttpHeader with HTTP header full-text. It contains a delimiter [CR]LR and can convert to a key-value data structure. |
 | HasHeader() | Checks whether a header exists or not |
 | GetHeader() | Gets a header value |
 | SetHeader() | Sets a header value |
@@ -223,7 +223,7 @@ class STELLITE_EXPORT HttpRequestHeader {
 
 | Name | Type | Description |
 | --- | --- | --- |
-| raw_header | std::string | Full-text of header data. It contains a delimiter and key-value pairs. |
+| raw_header | std::string | Full-text of HTTP header data. It contains a delimiter and key-value pairs. |
 | key | std::string | HTTP header key|
 | value | std::string | HTTP header value |
 
@@ -303,8 +303,8 @@ private:
 
 | Function | Description |
 | --- | --- |
-| EnumerateHeaderLines() | Enumerates all header elements line by line to check their header key and value. |
-| EnumerateHeader() | Enumerates a header of a particular key to check its value. |
+| EnumerateHeaderLines() | Enumerates all HTTP header pairs line by line to check their header key and value. |
+| EnumerateHeader() | Enumerates an HTTP header pair of a particular key to check its value. |
 | HasHeader() | Verifies whether a header value exists for a particular key. |
 | raw_headers() | Generates a single string that contains all header information. |
 | Reset() | Resets all header information.|
@@ -372,10 +372,10 @@ struct STELLITE_EXPORT HttpResponse {
 | was_cached | bool| Whether it is a cached response or not. When true, it is a cached response. |
 | server_data_unavailable | bool| A server error |
 | network_accessed | bool | Whether a response was sent over a network or not (as opposed to a cached response). When true, it is a network response. |
-| was_fetched_via_spdy | bool | When true, a response was made over a SPDY protocol. |
-| was_npn_negotiated | bool | Whether NPN negotiation was used for a response or not. |
-| was_fetched_via_proxy | bool | Whether a response was fetched via a proxy or not. |
-| connection_info | ConnectionInfo | |
-| connection_info_desc| std::string ||
+| was_fetched_via_spdy | bool | When true, a response was received over the SPDY or HTTP2 protocol. |
+| was_npn_negotiated | bool | Whether protocol negotiation was performed or not when receiving a response. |
+| was_fetched_via_proxy | bool | Whether a response was received through a proxy server or not. |
+| connection_info | ConnectionInfo | Information about which protocol was used |
+| connection_info_desc| std::string | Description of the protocol used |
 | headers | HttpResponseHeader ||
 
