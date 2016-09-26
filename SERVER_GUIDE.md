@@ -32,7 +32,7 @@ options:
 
 ## QUIC Discovery
 
-To use a QUIC server, you must understand [QUIC Discovery](https://docs.google.com/document/d/1i4m7DbrWGgXafHxwl8SwIusY2ELUe8WX258xt2LFxPM/edit). 
+To use the QUIC server, you must understand [QUIC Discovery](https://docs.google.com/document/d/1i4m7DbrWGgXafHxwl8SwIusY2ELUe8WX258xt2LFxPM/edit). 
 
 To use QUIC Discovery, you need to specify the "Alternative Service" option in an HTTP request header as follows:
 
@@ -44,6 +44,6 @@ Alt-Svc: quic="[<hostname>|]:<port>"; p="1"; ma=<seconds>
 * "port" is a QUIC server UDP port to be accessed by QUIC Discovery.
 * "ma" (Max-Age) is the number of seconds Alt-Svc header values are cached and thus usable.
 
-Note that only the default values (p="1" and ma="604800", where "604800" = 7 days) are permitted in the current version (2015-09-08). You cannot modify probability and ma parameters with this version.
+Note that only the default values (p="1" and ma="604800", where "604800" = 7 days) are permitted in the current version (2015-09-08). You cannot modify the probability and the "ma" parameter with this version.
 
 For detailed information, please refer to the [QUIC Discovery docs](https://docs.google.com/document/d/1i4m7DbrWGgXafHxwl8SwIusY2ELUe8WX258xt2LFxPM/edit?pref=2&pli=1) provided by Google.
