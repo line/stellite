@@ -546,7 +546,7 @@ def fetch_depot_tools():
     return tools_path
   execute(['git', 'clone', GIT_DEPOT, tools_path])
   execute(['git', 'checkout', 'abb9b22752a6ddd8a996c9198c06060b132ba5f0'],
-          cwd=tool_path)
+          cwd=tools_path)
   return tools_path
 
 
