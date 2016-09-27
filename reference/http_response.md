@@ -8,15 +8,16 @@ namespace stellite {
 class HttpResponseHeader
     : public RefCountedThreadSafe<HttpResponseHeader> {
  public:
-  HttpResponseHeader(const std::string& raw_header);
   HttpResponseHeader();
+  HttpResponseHeader(const std::string& raw_header);
+  HttpResponseHeader(const HttpResponseHeader& other);
   virtual ~HttpResponseHeader();
 
-  bool EnumerateHeaderLines(void** iter,
+  bool EnumerateHeaderLines(size_t* iter,
                             std::string* name,
                             std::string* value) const;
 
-  bool EnumerateHeader(void** iter,
+  bool EnumerateHeader(size_t* iter,
                        const std::string& name,
                        std::string* value) const;
 
@@ -26,7 +27,7 @@ class HttpResponseHeader
 
 private:
   class HttpResponseHeaderImpl;
-  up<HttpResponseHeaderImpl> impl_;
+  std::unique_ptr<HttpResponseHeaderImpl> impl_;
 };
 
 // clone of net/http/http_response_info.h
@@ -66,7 +67,7 @@ struct HttpResponse {
   ConnectionInfo connection_info;
   std::string connection_info_desc;
 
-  sp<HttpResponseHeader> headers;
+  HttpResponseHeader headers;
 };
 
 } // namespace stellite
