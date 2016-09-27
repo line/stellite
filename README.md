@@ -56,7 +56,7 @@ Stellite client library provides a protocol negotiation layer so that a mobile a
 
 ## Read more
 
-* Release notes
+* [Release notes](./RELEASE.md)
 * [Contributing](./CONTRIBUTE.md)
 * [About QUIC](https://www.chromium.org/quic)
 
