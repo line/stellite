@@ -32,20 +32,18 @@ options:
 
 ## QUIC Discovery
 
-To use a QUIC server, you must understand [QUIC Discovery](https://docs.google.com/document/d/1i4m7DbrWGgXafHxwl8SwIusY2ELUe8WX258xt2LFxPM/edit). 
+To use the QUIC server, you must understand [QUIC Discovery](https://docs.google.com/document/d/1i4m7DbrWGgXafHxwl8SwIusY2ELUe8WX258xt2LFxPM/edit). 
 
-QUIC Discovery provides APN (application protocol negotiation - ALPN?) that allows to specify an alternate protocol. It checks APN information from an HTTP header and informs a server that a QUIC protocol is available.
-
-To use QUIC Discovery, you need to specify an "Alternative Service" option for a HTTP request header as follows:
+To use QUIC Discovery, you need to specify the "Alternative Service" option in an HTTP request header as follows:
 
 ```bash
 Alt-Svc: quic="[<hostname>|]:<port>"; p="1"; ma=<seconds>
 ```
 
-* "hostname" is a host of a QUIC server. If left blank, an original host of an HTTP/TCP server is used.
-* "port" is a UDP port of a QUIC server to be accessed by QUIC Discovery.
+* "hostname" is a QUIC server host. If left blank, the original HTTP/TCP server host is used.
+* "port" is a QUIC server UDP port to be accessed by QUIC Discovery.
 * "ma" (Max-Age) is the number of seconds Alt-Svc header values are cached and thus usable.
 
-Note that only the default values (p="1" and ma="604800", where "604800" = 7 days) are permitted in the current version (2015-09-08). You cannot modify probability and ma parameters with this version.
+Note that only the default values (p="1" and ma="604800", where "604800" = 7 days) are permitted in the current version (2015-09-08). You cannot modify the probability and the "ma" parameter with this version.
 
 For detailed information, please refer to the [QUIC Discovery docs](https://docs.google.com/document/d/1i4m7DbrWGgXafHxwl8SwIusY2ELUe8WX258xt2LFxPM/edit?pref=2&pli=1) provided by Google.
