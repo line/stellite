@@ -11,20 +11,16 @@ class HttpRequestHeader {
   virtual ~HttpRequestHeader();
 
   bool HasHeader(const std::string& key) const;
-
   bool GetHeader(const std::string& key, std::string* value) const;
-
   void SetHeader(const std::string& key, const std::string& value);
-
   void RemoveHeader(const std::string& key);
-
   void ClearHeader();
 
   std::string ToString() const;
 
  private:
   class HttpRequestHeaderImpl;
-  up<HttpRequestHeaderImpl> impl_;
+  std::unique_ptr<HttpRequestHeaderImpl> impl_;
 };
 
 struct HttpRequest {
@@ -35,7 +31,7 @@ struct HttpRequest {
   std::string method;
   std::stringstream upload_stream;
 
-  up<HttpRequestHeader> headers;
+  std::unique_ptr<HttpRequestHeader> headers;
 };
 
 } // namespace stellite
