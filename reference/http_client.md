@@ -3,26 +3,13 @@
 
 ```c++
 
-class HttpResponseDelegate
-    : public stellite::RefCountedThreadSafe<HttpResponseDelegate> {
+class HttpResponseDelegate {
  public:
-  virtual void OnHttpResponse(const HttpResponse& response, const char* data,
-                              size_t len) = 0;
-
-  virtual void OnHttpStream(const HttpResponse& response, const char* data,
-                            size_t len) = 0;
-
-  virtual void OnHttpError(int error_code,
-                           const std::string& error_message) = 0;
-
- protected:
-  friend class stellite::RefCountedThreadSafe<HttpResponseDelegate>;
-
-  HttpResponseDelegate() {
-  }
-
-  virtual ~HttpResponseDelegate() {
-  }
+  virtual ~HttpResponseDelegate() {}
+  
+  virtual void OnHttpResponse(int request_id, const HttpResponse& response, const char* data, size_t len) = 0;
+  virtual void OnHttpStream(int request_id, const HttpResponse& response, const char* data, size_t len) = 0;
+  virtual void OnHttpError(int request_id, int error_code, const std::string& error_message) = 0;
 };
 
 ```
@@ -34,6 +21,8 @@ class HttpResponseDelegate
 > void HttpResponseDelegate::OnHttpResponse(const HttpResponse& response, const char* data, size\_t len)
 
 > > Parameters:
+
+> > > request_id: request identifier it retrun from HttpClient.Request or HttpClient.Stream function.
 
 > > > HttpResponse: http response header information. it contains transaction terminate information and protocol.
 
@@ -51,6 +40,8 @@ class HttpResponseDelegate
 
 > > Parameters:
 
+> > > request_id: request identifier it retrun from HttpClient.Request or HttpClient.Stream function.
+
 > > > HttpResponse: http response header information. it contains transaction terminate information and protocol.
 
 > > > char*: http response body buffer
@@ -64,9 +55,11 @@ class HttpResponseDelegate
 
 ##### this function are error callback. this OnHttpError will contain between socket layer error and protocol and http spcification.
 
-> void HttpResponseDelegate::OnHttpError(int error_code, const std::string& error\_message)
+> void HttpResponseDelegate::OnHttpError(int request_id, int error_code, const std::string& error\_message)
 
 > > Parameters:
+
+> > > request_id: request identifier it retrun from HttpClient.Request or HttpClient.Stream function.
 
 > > > int: error code
 
