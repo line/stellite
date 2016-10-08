@@ -19,12 +19,15 @@ Target platform: Android, Linux
 ```bash
 $ ./tools/build.py --help
 usage: build.py [-h] [--chromium-path CHROMIUM_PATH] [--out OUT]
-                --target-platform {ios,android,darwin,linux}
-                {stellite,quic_server}
+                --target-platform {ios,android,darwin,linux} --target
+                {stellite,quic_server,client_binder}
+                [--target-type {static_library,shared_library}]
+                [--cache-dir CACHE_DIR]
+                {clean,build,clean_build,unittest,sync_chromium}
 
 positional arguments:
-  {stellite,quic_server}
-                        specify build target
+  {clean,build,clean_build,unittest,sync_chromium}
+                        build action
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -33,18 +36,21 @@ optional arguments:
   --out OUT             build output path
   --target-platform {ios,android,darwin,linux}
                         ios, android, darwin, linux
+  --target {stellite,quic_server,client_binder}
+                        stellite library or quic server
+  --target-type {static_library,shared_library}
+                        library type
+  --cache-dir CACHE_DIR
 ```
 
 ### Build example
 
 Client build:
 ```bash
-./tools/build.py --target-platform=android stellite
+./tools/build.py --target-platform=android --target stellite build
 ```
 
 Server build:
 ```bash
-./tools/build --target-platform=linux quic_server
+./tools/build.py --target-platform=linux --target quic_server build
 ```
-
-
