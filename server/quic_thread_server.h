@@ -22,7 +22,6 @@
 #include "stellite/server/server_config.h"
 #include "stellite/server/thread_worker.h"
 #include "net/base/ip_endpoint.h"
-#include "net/quic/crypto/quic_crypto_server_config.h"
 #include "net/quic/quic_clock.h"
 #include "net/quic/quic_config.h"
 
@@ -31,7 +30,6 @@ class Thread;
 } // namespace thread
 
 namespace net {
-class EphemeralKeySource;
 class QuicServerConfigProtobuf;
 class SharedSessionManager;
 
@@ -39,19 +37,15 @@ class QuicThreadServer {
  public:
   QuicThreadServer(const QuicConfig& quic_config,
                    const ServerConfig& server_config,
-                   const QuicVersionVector& supported_version,
-                   ProofSource* proof_source);
+                   const QuicVersionVector& supported_version);
   virtual ~QuicThreadServer();
 
-  bool Initialize(const std::vector<QuicServerConfigProtobuf*>& protobufs);
+  bool Initialize();
 
-  bool Start(size_t worker_size, const IPEndPoint& quic_address);
+  bool Start(size_t worker_size, const IPEndPoint& quic_address,
+             std::vector<QuicServerConfigProtobuf*> serialized_config);
 
   bool Shutdown();
-
-  void SetStrikeRegisterNoStartupPeriod();
-
-  void SetEphemeralKeySource(EphemeralKeySource* key_source);
 
  private:
   typedef std::map<QuicConnectionId, base::PlatformThreadId> ConnectionMap;
@@ -62,9 +56,6 @@ class QuicThreadServer {
 
   // QUIC config
   QuicConfig quic_config_;
-
-  // QUIC crypto config
-  QuicCryptoServerConfig crypto_config_;
 
   // Server config
   const ServerConfig& server_config_;
