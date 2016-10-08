@@ -18,7 +18,6 @@
 #include <memory>
 
 #include "base/time/time.h"
-#include "stellite/synchronization/rwlock.h"
 #include "net/quic/crypto/ephemeral_key_source.h"
 
 namespace net {
@@ -41,7 +40,6 @@ class QuicEphemeralKeySource: public EphemeralKeySource {
                                  base::StringPiece peer_public_value,
                                  std::string* public_value);
 
-  RWLock rwlock_;
   base::Time calculate_time_;
   std::unique_ptr<KeyExchange> server_keypair_;
 
