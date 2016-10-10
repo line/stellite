@@ -16,12 +16,6 @@
 
 #include "base/single_thread_task_runner.h"
 #include "base/threading/thread.h"
-#include "stellite/fetcher/http_request_context_getter.h"
-#include "stellite/logging/logging.h"
-#include "stellite/server/server_config.h"
-#include "stellite/server/server_packet_writer.h"
-#include "stellite/server/thread_dispatcher.h"
-#include "stellite/socket/quic_udp_server_socket.h"
 #include "net/base/net_errors.h"
 #include "net/quic/crypto/quic_random.h"
 #include "net/quic/quic_chromium_alarm_factory.h"
@@ -29,23 +23,33 @@
 #include "net/quic/quic_packet_writer.h"
 #include "net/quic/quic_protocol.h"
 #include "net/tools/quic/quic_dispatcher.h"
+#include "stellite/crypto/quic_ephemeral_key_source.h"
+#include "stellite/fetcher/http_request_context_getter.h"
+#include "stellite/logging/logging.h"
+#include "stellite/server/server_config.h"
+#include "stellite/server/server_packet_writer.h"
+#include "stellite/server/thread_dispatcher.h"
+#include "stellite/socket/quic_udp_server_socket.h"
 
 namespace net {
 
 const int kReadBufferSize = 2 * kMaxPacketSize;
 const char* kDispatchThread = "dispatch thread";
 const char* kFetchThread = "fetch thread";
+const char* kSourceAddressTokenSecret = "secret";
 
 ThreadWorker::ThreadWorker(
     const IPEndPoint& bind_address,
     const QuicConfig& quic_config,
-    const QuicCryptoServerConfig* crypto_config,
     const ServerConfig& server_config,
-    const QuicVersionVector& supported_versions)
+    const QuicVersionVector& supported_versions,
+    ProofSource* proof_source)
     : dispatch_continuity_(server_config.dispatch_continuity()),
       bind_address_(bind_address),
       quic_config_(quic_config),
-      crypto_config_(crypto_config),
+      crypto_config_(kSourceAddressTokenSecret,
+                     QuicRandom::GetInstance(),
+                     proof_source),
       server_config_(server_config),
       supported_versions_(supported_versions),
       read_pending_(false),
@@ -58,9 +62,36 @@ ThreadWorker::ThreadWorker(
 
 ThreadWorker::~ThreadWorker() {}
 
+bool ThreadWorker::Initialize(
+    const std::vector<QuicServerConfigProtobuf*>& protobufs) {
+  if (protobufs.size()) {
+    if (!crypto_config_.SetConfigs(protobufs, QuicWallTime::Zero())) {
+      FLOG(ERROR) << "Failed to set QUIC server config";
+      return false;
+    }
+  } else {
+    std::unique_ptr<CryptoHandshakeMessage> scfg(
+        crypto_config_.AddDefaultConfig(
+            QuicRandom::GetInstance(),
+            &clock_,
+            QuicCryptoServerConfig::ConfigOptions()));
+  }
+
+  return true;
+}
+
+void ThreadWorker::SetStrikeRegisterNoStartupPeriod() {
+  crypto_config_.set_strike_register_no_startup_period();
+}
+
+void ThreadWorker::SetEphemeralKeySource(EphemeralKeySource* key_source) {
+  crypto_config_.SetEphemeralKeySource(key_source);
+}
+
 void ThreadWorker::Start() {
   CHECK(!dispatch_thread_.get());
   CHECK(!fetch_thread_.get());
+  CHECK(crypto_config_.NumberOfConfigs() > 0);
 
   base::Thread::Options worker_thread_option(base::MessageLoop::TYPE_IO, 0);
 
@@ -208,8 +239,7 @@ ThreadWorker::dispatch_task_runner() {
   return dispatch_thread_->task_runner();
 }
 
-scoped_refptr<base::SingleThreadTaskRunner>
-ThreadWorker::fetch_task_runner(){
+scoped_refptr<base::SingleThreadTaskRunner> ThreadWorker::fetch_task_runner() {
   return fetch_thread_->task_runner();
 }
 

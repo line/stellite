@@ -15,48 +15,59 @@
 #include "stellite/server/quic_thread_server.h"
 
 #include "base/threading/thread.h"
+#include "net/base/net_errors.h"
+#include "net/quic/crypto/proof_source_chromium.h"
+#include "net/quic/crypto/quic_random.h"
+#include "net/tools/quic/quic_dispatcher.h"
+#include "stellite/crypto/quic_ephemeral_key_source.h"
 #include "stellite/fetcher/http_rewrite.h"
 #include "stellite/logging/logging.h"
 #include "stellite/server/thread_dispatcher.h"
 #include "stellite/server/thread_worker.h"
-#include "net/base/net_errors.h"
-#include "net/quic/crypto/quic_random.h"
-#include "net/tools/quic/quic_dispatcher.h"
 
 namespace net {
 class ServerPacketWriter;
 
-const char* kSourceAddressTokenSecret = "secret";
-
 QuicThreadServer::QuicThreadServer(const QuicConfig& quic_config,
                                    const ServerConfig& server_config,
-                                   const QuicVersionVector& supported_versions,
-                                   ProofSource* proof_source)
+                                   const QuicVersionVector& supported_versions)
     : quic_config_(quic_config),
-      crypto_config_(kSourceAddressTokenSecret,
-                     QuicRandom::GetInstance(),
-                     proof_source),
       server_config_(server_config),
       supported_versions_(supported_versions) {
 }
 
-QuicThreadServer::~QuicThreadServer() {
-}
+QuicThreadServer::~QuicThreadServer() {}
 
 bool QuicThreadServer::Start(size_t worker_size,
-                             const IPEndPoint& quic_address) {
-  if (crypto_config_.NumberOfConfigs() == 0) {
-    FLOG(ERROR) << "QUIC server config is not set";
-    return false;
-  }
+    const IPEndPoint& quic_address,
+    std::vector<QuicServerConfigProtobuf*> serialized_config) {
 
   for (size_t i = 0; i < worker_size; ++i) {
+    ProofSourceChromium* proof_source = new ProofSourceChromium();
+    if (!proof_source->Initialize(server_config_.certfile(),
+                                  server_config_.keyfile(),
+                                  base::FilePath())) {
+      FLOG(ERROR) << "Failed to parse the certificate";
+      return false;
+    }
+
     std::unique_ptr<ThreadWorker> worker(
         new ThreadWorker(quic_address,
                          quic_config_,
-                         &crypto_config_,
                          server_config_,
-                         supported_versions_));
+                         supported_versions_,
+                         proof_source));
+
+    worker->SetStrikeRegisterNoStartupPeriod();
+
+    // Ephemeral key source, owned by worker
+    worker->SetEphemeralKeySource(new QuicEphemeralKeySource());
+
+    if (!worker->Initialize(serialized_config)) {
+      FLOG(ERROR) << "failed to parse quic server config";
+      return false;
+    }
+
     worker->Start();
     worker_list_.push_back(std::move(worker));
   }
@@ -73,16 +84,7 @@ bool QuicThreadServer::Shutdown() {
   return true;
 }
 
-void QuicThreadServer::SetStrikeRegisterNoStartupPeriod() {
-  crypto_config_.set_strike_register_no_startup_period();
-}
-
-void QuicThreadServer::SetEphemeralKeySource(EphemeralKeySource* key_source) {
-  crypto_config_.SetEphemeralKeySource(key_source);
-}
-
-bool QuicThreadServer::Initialize(
-    const std::vector<QuicServerConfigProtobuf*>& protobufs) {
+bool QuicThreadServer::Initialize() {
   // If an initial flow control window has not explicitly been set, then use a
   // sensible value for a server: 1 MB for session, 64 KB for each stream.
   const uint32_t kInitialSessionFlowControlWindow = 1 * 1024 * 1024;  // 1 MB
@@ -97,20 +99,6 @@ bool QuicThreadServer::Initialize(
       kMinimumFlowControlSendWindow) {
     quic_config_.SetInitialSessionFlowControlWindowToSend(
         kInitialSessionFlowControlWindow);
-  }
-  crypto_config_.set_strike_register_no_startup_period();
-
-  if (protobufs.size()) {
-    if (!crypto_config_.SetConfigs(protobufs, QuicWallTime::Zero())) {
-      FLOG(ERROR) << "Failed to set QUIC server config";
-      return false;
-    }
-  } else {
-    std::unique_ptr<CryptoHandshakeMessage> scfg(
-        crypto_config_.AddDefaultConfig(
-            QuicRandom::GetInstance(),
-            &clock_,
-            QuicCryptoServerConfig::ConfigOptions()));
   }
 
   return true;

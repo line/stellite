@@ -34,20 +34,16 @@ std::string QuicEphemeralKeySource::CalculateForwardSecureKey(
     base::StringPiece peer_public_value,
     std::string* public_value) {
 
+  // quic server ephemeral key pair caching
+  // This idea is referenced from devsister go-quic server
+  // https://github.com/devsisters/goquic
   base::Time now(base::Time::Now());
-  {
-    ReadLockScoped lock_guard(rwlock_);
-    // quic server ephemeral key pair caching
-    // This idea is referenced from devsister go-quic server
-    // https://github.com/devsisters/goquic
-    if ((now - calculate_time_).InSeconds() < kExpireSeconds &&
-        server_keypair_.get() != nullptr) {
-      return CalculateSharedKey(server_keypair_.get(), peer_public_value,
-                                public_value);
-    }
+  if ((now - calculate_time_).InSeconds() < kExpireSeconds &&
+      server_keypair_.get() != nullptr) {
+    return CalculateSharedKey(server_keypair_.get(), peer_public_value,
+                              public_value);
   }
 
-  WriteLockScoped lock_guard(rwlock_);
   calculate_time_ = std::move(now);
   server_keypair_.reset(key_exchange->NewKeyPair(random));
   return CalculateSharedKey(server_keypair_.get(), peer_public_value,

@@ -19,12 +19,13 @@
 
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "stellite/server/server_config.h"
 #include "net/base/ip_endpoint.h"
 #include "net/log/net_log.h"
+#include "net/quic/crypto/quic_crypto_server_config.h"
 #include "net/quic/quic_clock.h"
 #include "net/quic/quic_config.h"
 #include "net/quic/quic_protocol.h"
+#include "stellite/server/server_config.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -32,10 +33,10 @@ class Thread;
 }
 
 namespace net {
+class EphemeralKeySource;
 class IOBufferWithSize;
 class QuicChromiumAlarmFactory;
 class QuicChromiumConnectionHelper;
-class QuicCryptoServerConfig;
 class QuicServerConfig;
 class QuicServerConfigProtobuf;
 class QuicUDPServerSocket;
@@ -54,11 +55,17 @@ class NET_EXPORT ThreadWorker {
   ThreadWorker(
       const IPEndPoint& bind_address,
       const QuicConfig& quic_config,
-      const QuicCryptoServerConfig* crypto_config,
       const ServerConfig& server_config,
-      const QuicVersionVector& supported_versions);
+      const QuicVersionVector& supported_versions,
+      ProofSource* proof_source);
 
   virtual ~ThreadWorker();
+
+  bool Initialize(const std::vector<QuicServerConfigProtobuf*>& protobufs);
+
+  void SetStrikeRegisterNoStartupPeriod();
+
+  void SetEphemeralKeySource(EphemeralKeySource* key_source);
 
   void Start();
 
@@ -70,7 +77,7 @@ class NET_EXPORT ThreadWorker {
   }
 
   const QuicCryptoServerConfig* crypto_config() {
-    return crypto_config_;
+    return &crypto_config_;
   }
 
   const ServerConfig& server_config() {
@@ -127,7 +134,7 @@ class NET_EXPORT ThreadWorker {
   const QuicConfig& quic_config_;
 
   // crypto_config_ contains crypto parameters for the handshake.
-  const QuicCryptoServerConfig* crypto_config_;
+  QuicCryptoServerConfig crypto_config_;
 
   // Server config
   const ServerConfig& server_config_; /* not owned */
