@@ -9,7 +9,6 @@
 # file to your new one or GN won't know about it.
 
 group("root") {
-  testonly = true
   deps = [
     "//base:base",
     "//net:net",
