@@ -43,6 +43,10 @@
 #include "base/strings/utf_string_conversions.h"
 #endif
 
+#ifndef SO_REUSEPORT
+#define SO_REUSEPORT 15
+#endif
+
 namespace net {
 
 namespace {
