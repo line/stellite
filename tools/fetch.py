@@ -66,21 +66,26 @@ is_component_build = false
 """
 
 GN_ARGS_IOS = """
-is_component_build = false
-is_debug = false
 enable_dsyms = false
 enable_stripping = enable_dsyms
-is_official_build = false
+ios_enable_code_signing = false
 is_chrome_branded = is_official_build
-use_xcode_clang = is_official_build
+is_component_build = false
+is_debug = false
+is_official_build = false
+symbol_level = 1
 target_cpu = "{}"
 target_os = "ios"
-ios_enable_code_signing = false
-symbol_level = 1
+use_xcode_clang = is_official_build
 """
 
-GN_ARGS_IOS_SIMULATOR = """
+GN_ARGS_ANDROID = """
+is_clang = true
 is_component_build = false
+is_debug = false
+symbol_level = 1
+target_cpu = "{}"
+target_os = "android"
 """
 
 CHROMIUM_DEPENDENCY_DIRECTORIES = [
@@ -108,13 +113,46 @@ CHROMIUM_DEPENDENCY_DIRECTORIES = [
   'third_party/protobuf',
   'third_party/pyftpdlib',
   'third_party/pywebsocket',
+  'third_party/re2',
   'third_party/tcmalloc',
   'third_party/tlslite',
   'third_party/yasm',
   'third_party/zlib',
-  'third_party/re2',
   'tools',
   'url',
+]
+
+ANDROID_DEPENDENCY_DIRECTORIES = [
+  'v8',
+  'third_party/WebKit',
+  'third_party/accessibility_test_framework',
+  'third_party/android_async_task',
+  'third_party/android_crazy_linker',
+  'third_party/android_data_chart',
+  'third_party/android_media',
+  'third_party/android_opengl',
+  'third_party/android_platform',
+  'third_party/android_protobuf',
+  'third_party/android_support_test_runner',
+  'third_party/android_swipe_refresh',
+  'third_party/android_tools',
+  'third_party/apache_velocity',
+  'third_party/ashmem',
+  'third_party/bouncycastle',
+  'third_party/byte_buddy',
+  'third_party/catapult',
+  'third_party/guava',
+  'third_party/hamcrest',
+  'third_party/icu4j',
+  'third_party/ijar',
+  'third_party/intellij',
+  'third_party/jsr-305',
+  'third_party/junit',
+  'third_party/mockito',
+  'third_party/objenesis',
+  'third_party/ow2_asm',
+  'third_party/robolectric',
+  'third_party/sqlite4java',
 ]
 
 MAC_EXCLUDE_OBJECTS = [
@@ -129,6 +167,10 @@ IOS_EXCLUDE_OBJECTS = [
   'libprotobuf_full.a',
 ]
 
+ANDROID_EXCLUDE_OBJECTS = [
+  #'cpu_features.cpu-features.o',
+]
+
 def detect_host_platform():
   """detect host architecture"""
   host_platform_name = platform.system().lower()
@@ -136,6 +178,14 @@ def detect_host_platform():
     return MAC
   return host_platform_name
 
+
+def detect_host_os():
+  """detect host operating system"""
+  return platform.system().lower()
+
+
+def detect_host_arch():
+  return platform.uname()[4]
 
 def option_parser(args):
   """fetching tools arguments parser"""
@@ -175,6 +225,20 @@ def build_object(options):
 
 def which_application(name):
   return distutils.spawn.find_executable(name)
+
+
+def copy_tree(src, dest):
+  """recursivly copy a directory from |src| to |dest|"""
+  if not os.path.exists(dest):
+    os.makedirs(dest)
+
+  for dir_member in os.listdir(src):
+    src_name = os.path.join(src, dir_member)
+    dest_name = os.path.join(dest, dir_member)
+    if os.path.isdir(src_name):
+      copy_tree(src_name, dest_name)
+      continue
+    shutil.copy2(src_name, dest_name)
 
 
 class BuildObject(object):
@@ -223,7 +287,11 @@ class BuildObject(object):
     """return source code directory for build.
 
     it was getter from chromium essential code and code"""
-    return os.path.join(self.root_path, 'build')
+    return os.path.join(self.root_path, 'build_{}'.format(self.target_platform))
+
+  @property
+  def buildspace_src_path(self):
+    return os.path.join(self.buildspace_path, 'src')
 
   @property
   def gn_path(self):
@@ -234,7 +302,7 @@ class BuildObject(object):
   def build_output_path(self):
     """return object file path that store a compiled files"""
     out_dir = 'out_{}'.format(self.target_platform)
-    return os.path.join(self.buildspace_path, 'src', out_dir)
+    return os.path.join(self.buildspace_src_path, out_dir)
 
   @property
   def stellite_path(self):
@@ -252,6 +320,10 @@ class BuildObject(object):
     return os.path.join(self.third_party_path, chromium_dir)
 
   @property
+  def chromium_src_path(self):
+    return os.path.join(self.chromium_path, 'src')
+
+  @property
   def chromium_branch(self):
     return self.read_chromium_branch()
 
@@ -261,7 +333,7 @@ class BuildObject(object):
 
   @property
   def clang_compiler_path(self):
-    return os.path.join(self.chromium_path, 'src', 'third_party', 'llvm-build',
+    return os.path.join(self.chromium_src_path, 'third_party', 'llvm-build',
                         'Release+Asserts', 'bin', 'clang++')
 
   @property
@@ -297,7 +369,6 @@ class BuildObject(object):
     if bool(res) == True:
       return
 
-    print(' '.join(command))
     raise Exception('command execution are failed')
 
   def fetch_depot_tools(self):
@@ -333,7 +404,6 @@ class BuildObject(object):
       return
 
     print('remove chromium code: '.format(self.chromium_path))
-
     shutil.rmtree(self.chromium_path)
 
   def generate_ninja_script(self, gn_args=None, gn_options=None):
@@ -356,11 +426,7 @@ class BuildObject(object):
     command.append('gen')
     command.append(self.build_output_path)
 
-    src_path = os.path.join(self.buildspace_path, 'src')
-    self.execute(command, cwd=src_path)
-
-  def packaging_target(self):
-    """packaging target"""
+    self.execute(command, cwd=self.buildspace_src_path)
 
   def write_gclient(self, context):
     gclient_info_path = os.path.join(self.chromium_path, '.gclient')
@@ -382,7 +448,7 @@ class BuildObject(object):
         return False
 
     if self.target_platform == ANDROID:
-      if not UBUNTU in platform.uname[3].lower():
+      if not UBUNTU in platform.uname()[3].lower():
         return False
 
     return True
@@ -392,10 +458,10 @@ class BuildObject(object):
     if not os.path.exists(self.chromium_path):
       return False
 
-    if not os.path.exists(os.path.join(self.chromium_path, 'src')):
+    if not os.path.exists(self.chromium_src_path):
       return False
 
-    if not os.path.isdir(os.path.join(self.chromium_path, 'src')):
+    if not os.path.isdir(self.chromium_src_path):
       return False
 
     if not os.path.exists(os.path.join(self.chromium_path, '.gclient')):
@@ -409,10 +475,10 @@ class BuildObject(object):
   def read_chromium_branch(self):
     """read chromium git branch"""
     command = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
-    working_path = os.path.join(self.chromium_path, 'src')
 
     try:
-      job = subprocess.Popen(command, cwd=working_path, stdout=subprocess.PIPE)
+      job = subprocess.Popen(command, cwd=self.chromium_src_path,
+                             stdout=subprocess.PIPE)
       job.wait()
       return job.stdout.read().strip()
     except Exception:
@@ -437,7 +503,7 @@ class BuildObject(object):
     if self.chromium_tag in self.chromium_branch:
       return True
 
-    cwd = os.path.join(self.chromium_path, 'src')
+    cwd = self.chromium_src_path
     print('working dir: {}'.format(cwd))
 
     print('fetch chromium tags ...')
@@ -450,6 +516,7 @@ class BuildObject(object):
     print('checkout: {}'.format(branch))
 
     if not self.execute_with_error(['git', 'checkout', branch], cwd=cwd):
+      print('change chromium tag: {}'.format(self.chromium_tag))
       make_branch_command = ['git', 'checkout', '-b', branch, self.chromium_tag]
       self.execute(make_branch_command, cwd=cwd)
 
@@ -460,36 +527,34 @@ class BuildObject(object):
 
   def synchronize_buildspace(self):
     """synchronize code for building libchromium.a"""
-    src_path = os.path.join(self.buildspace_path, 'src')
-    if not os.path.exists(src_path):
-      print('make {} ...'.format(src_path))
-      os.makedirs(src_path)
+    if not os.path.exists(self.buildspace_src_path):
+      print('make {} ...'.format(self.buildspace_src_path))
+      os.makedirs(self.buildspace_src_path)
 
     for target_dir in CHROMIUM_DEPENDENCY_DIRECTORIES:
-      if os.path.exists(os.path.join(src_path, target_dir)):
+      if os.path.exists(os.path.join(self.buildspace_src_path, target_dir)):
         continue
       print('copy chromium {} ...'.format(target_dir))
-      shutil.copytree(os.path.join(self.chromium_path, 'src', target_dir),
-                      os.path.join(src_path, target_dir))
+      copy_tree(os.path.join(self.chromium_src_path, target_dir),
+                os.path.join(self.buildspace_src_path, target_dir))
 
     print('copy .gclient ...')
     shutil.copy(os.path.join(self.chromium_path, '.gclient'),
                 self.buildspace_path)
 
     print('copy modified_files ...')
-    command = ['cp', '-r', self.modified_files_path + '/' , src_path]
-    os.system(' '.join(command))
+    copy_tree(self.modified_files_path, self.buildspace_src_path)
 
     print('copy chromium/src/.gn ...')
-    command = ['cp', os.path.join(self.chromium_path, 'src', '.gn'), src_path]
-    os.system(' '.join(command))
+    shutil.copy(os.path.join(self.chromium_src_path, '.gn'),
+                self.buildspace_src_path)
 
     print('copy stellite files...')
     command = ['ln', '-s', self.stellite_path]
-    self.execute_with_error(command, cwd=src_path)
+    self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def build_target(self):
-    command = ['ninja', '-C', self.build_output_path, self.target]
+    command = ['ninja', '-v', '-C', self.build_output_path, self.target]
     self.execute(command)
 
   def check_depot_tools_or_install(self):
@@ -525,28 +590,290 @@ class BuildObject(object):
 
   def clean(self):
     """clean buildspace"""
-    if os.path.exists(self.buildspace_path):
-      shutil.rmtree(self.buildspace_path)
-
-  def package_target(self):
-    raise NotImplementedError()
+    shutil.rmtree(self.build_output_path)
 
 
 class AndroidBuild(BuildObject):
   """android build"""
-  def __init__(self, target, target_type):
+  def __init__(self, target, target_type, target_arch=None):
+    self._target_arch = target_arch or ALL
     super(self.__class__, self).__init__(target, target_type, ANDROID)
 
-  def build(self):
-    pass
+  @property
+  def target_arch(self):
+    return self._target_arch
+
+  @property
+  def build_output_path(self):
+    out_dir = 'out_{}_{}'.format(self.target_platform, self.target_arch)
+    return os.path.join(self.buildspace_path, 'src', out_dir, 'obj')
+
+  @property
+  def ndk_root_path(self):
+    return os.path.join(self.chromium_path, 'src', 'third_party',
+                        'android_tools', 'ndk')
+
+  @property
+  def android_app_abi(self):
+    if self.target_arch == 'armv6':
+      return 'armeabi'
+
+    if self.target_arch == 'armv7':
+      return 'armeabi-v7a'
+
+    if self.target_arch == 'arm64':
+      return 'arm64-v8a'
+
+    if self.target_arch == 'x86':
+      return 'x86'
+
+    if self.target_arch == 'x64':
+      return 'x86_64'
+
+    raise Exception('unknown target architecture: {}'.format(self.target_arch))
+
+  @property
+  def android_toolchain_relative(self):
+    if self.target_arch in ('armv6', 'armv7'):
+      return 'arm-linux-androideabi-4.9'
+
+    if self.target_arch == 'arm64':
+      return 'aarch64-linux-android-4.9'
+
+    if self.target_arch == 'x86':
+      return 'x86-4.9'
+
+    if self.target_arch == 'x64':
+      return 'x86_64-4.9'
+
+    raise Exception('unknown target architecture: {}'.format(self.target_arch))
+
+  @property
+  def android_libcpp_root(self):
+    return os.path.join(self.ndk_root_path, 'sources', 'cxx-stl', 'llvm-libc++')
+
+  @property
+  def android_libcpp_libs_dir(self):
+    return os.path.join(self.android_libcpp_root, 'libs', self.android_app_abi)
+
+  @property
+  def android_ndk_sysroot(self):
+    ndk_platforms_path = os.path.join(self.ndk_root_path, 'platforms')
+    if self.target_arch in ('armv6', 'armv7'):
+      return os.path.join(ndk_platforms_path, 'android-16', 'arch-arm')
+
+    if self.target_arch == 'arm64':
+      return os.path.join(ndk_platforms_path, 'android-21', 'arch-arm64')
+
+    if self.target_arch == 'x86':
+      return os.path.join(ndk_platforms_path, 'android-16', 'arch-x86')
+
+    if self.target_arch == 'x64':
+      return os.path.join(ndk_platforms_path, 'android-21', 'arch-x86_64')
+
+    raise Exception('unknown target error: {}'.format(self.target_arch))
+
+  @property
+  def android_ndk_lib_dir(self):
+    if self.target_arch in ('armv6', 'armv7', 'x86', 'x64'):
+      return os.path.join('usr', 'lib')
+
+    if self.target_arch == 'x64':
+      return os.path.join('usr', 'lib64')
+
+    raise Exception('unknown target architecture: {}'.format(self.target_arch))
+
+  @property
+  def android_ndk_lib(self):
+    return os.path.join(self.android_ndk_sysroot, self.android_ndk_lib_dir)
+
+  @property
+  def android_toolchain_path(self):
+    return os.path.join(self.ndk_root_path, 'toolchains',
+                        self.android_toolchain_relative, 'prebuilt',
+                        '{}-{}'.format(detect_host_os(), detect_host_arch()))
+
+  @property
+  def android_compiler_path(self):
+    toolchain_path = os.path.join(self.android_toolchain_path, 'bin')
+    filtered = filter(lambda x: x.endswith('g++'), os.listdir(toolchain_path))
+    return os.path.join(toolchain_path, filtered[0])
+
+  @property
+  def android_ar_path(self):
+    toolchain_path = os.path.join(self.android_toolchain_path, 'bin')
+    filtered = filter(lambda x: x.endswith('ar'), os.listdir(toolchain_path))
+    return os.path.join(toolchain_path, filtered[0])
+
+  @property
+  def binutils_path(self):
+    return os.path.join(self.chromium_path, 'src', 'third_party', 'binutils',
+                        'Linux_x64', 'Release', 'bin')
+
+  @property
+  def android_libgcc_filename(self):
+    toolchain_path = os.path.join(self.android_toolchain_path, 'bin')
+    filtered = filter(lambda x: x.endswith('gcc'), os.listdir(toolchain_path))
+    gcc_path = os.path.join(toolchain_path, filtered[0])
+    job = subprocess.Popen([gcc_path, '-print-libgcc-file-name'],
+                           stdout=subprocess.PIPE)
+    job.wait()
+    return job.stdout.read().strip()
+
+  @property
+  def android_abi_target(self):
+    if self.target_arch in ('armv6', 'armv7'):
+      return 'arm-linux-androideabi'
+    if self.target_arch == 'x86':
+      return 'i686-linux-androideabi'
+    if self.target_arch == 'arm64':
+      return 'aarch64-linux-android'
+    if self.target_arch == 'x64':
+      return 'x86_64-linux-androideabi'
+    raise Exception('unknown target architecture error')
+
+  def synchronize_buildspace(self):
+    super(self.__class__, self).synchronize_buildspace()
+
+    buildspace_src = os.path.join(self.buildspace_path, 'src')
+    for target_dir in ANDROID_DEPENDENCY_DIRECTORIES:
+      if os.path.exists(os.path.join(buildspace_src, target_dir)):
+        continue
+      print('copy chromium {} ...'.format(target_dir))
+      copy_tree(os.path.join(self.chromium_src_path, target_dir),
+                os.path.join(buildspace_src, target_dir))
+
+  def clang_arch(self, arch):
+    if arch in ('x86', 'x64', 'arm64'):
+      return arch
+    if arch in ('armv6', 'armv7'):
+      return 'arm'
+    raise Exception('undefined android clang arch')
+
+  def appendix_gn_args(self, arch):
+    if arch == 'armv6':
+      return 'arm_version = 6'
+    if arch == 'armv7':
+      return 'arm_version = 7'
+    return ''
+
+  def package_target(self):
+    if self.target_type == STATIC_LIBRARY:
+      return self.link_static_library()
+
+    if self.target_type == SHARED_LIBRARY:
+      return self.link_shared_library()
+
+    raise Exception('invalid package target')
 
   def fetch_toolchain(self):
     self.write_gclient(GCLIENT_ANDROID)
     self.gclient_sync()
     return True
 
-  def package_target(self):
-    pass
+  def link_static_library(self):
+    library_name = 'lib{}_{}_{}.a'.format(self.target, self.target_platform,
+                                          self.target_arch)
+    library_path = os.path.join(self.build_output_path, library_name)
+    command = [
+      self.android_ar_path,
+      'rsc', os.path.join(self.build_output_path, library_name),
+    ]
+
+    for filename in self.pattern_files(self.build_output_path, '*.o'):
+      command.append(filename)
+    self.execute(command)
+    return library_path
+
+  def link_shared_library(self):
+    library_name = 'lib{}_{}_{}.so'.format(self.target, self.target_platform,
+                                           self.target_arch)
+    command = [
+      self.clang_compiler_path,
+      #self.android_compiler_path,
+      '-Wl,-shared',
+      '-Wl,--fatal-warnings',
+      '-fPIC',
+      '-Wl,-z,noexecstack',
+      '-Wl,-z,now',
+      '-Wl,-z,relro',
+      '-Wl,-z,defs',
+      '-Wl,--as-needed',
+      '--gcc-toolchain={}'.format(self.android_toolchain_path),
+      '-fuse-ld=gold',
+      '-Wl,--icf=all',
+      '-Wl,--build-id=sha1',
+      '-Wl,--no-undefined',
+      '-Wl,--exclude-libs=libgcc.a',
+      '-Wl,--exclude-libs=libc++_static.a',
+      '-Wl,--exclude-libs=libvpx_assembly_arm.a',
+      '--target={}'.format(self.android_abi_target),
+      '-nostdlib',
+      '-Wl,--warn-shared-textrel',
+      '--sysroot={}'.format(self.android_ndk_sysroot),
+      '-Wl,--warn-shared-textrel',
+      '-Wl,-O1',
+      '-Wl,--gc-sections',
+      '-Wl,-wrap,calloc',
+      '-Wl,-wrap,free',
+      '-Wl,-wrap,malloc',
+      '-Wl,-wrap,memalign',
+      '-Wl,-wrap,posix_memalign',
+      '-Wl,-wrap,pvalloc',
+      '-Wl,-wrap,realloc',
+      '-Wl,-wrap,valloc',
+      '-Wl,--gc-sections',
+    ]
+
+    objs = self.pattern_files(os.path.join(self.build_output_path, 'obj'),
+                              '*.o', ANDROID_EXCLUDE_OBJECTS)
+    command.extend(objs)
+
+    command.extend([
+      '-L{}'.format(self.android_libcpp_libs_dir),
+      '-lc++_shared',
+      '-lc++abi',
+      '-landroid_support',
+      self.android_libgcc_filename,
+      '-lc',
+      '-ldl',
+      '-lm',
+      '-llog'
+    ])
+
+    if 'arm' in self.target_arch:
+      command.append('-lunwind')
+
+    library_path = os.path.join(self.build_output_path, library_name)
+    command.extend(['-o', library_path])
+
+    self.execute(command)
+
+    return library_path
+
+  def build(self):
+    lib_list = []
+    for arch in ('armv6', 'armv7', 'x86', 'x64'):
+      gn_context = GN_ARGS_ANDROID.format(self.clang_arch(arch))
+      gn_context += '\n' + self.appendix_gn_args(arch)
+
+      build = AndroidBuild(self.target, self.target_type, arch)
+      build.generate_ninja_script(gn_args=gn_context)
+      build.build_target()
+      lib_list.append(build.package_target())
+
+    if not os.path.exists(self.build_output_path):
+      os.makedirs(self.build_output_path)
+
+    for libfile in lib_list:
+      shutil.copy2(libfile, self.build_output_path)
+
+  def clean(self):
+    for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
+      build = AndroidBuild(self.target, self.target_type, arch)
+      if not os.path.exists(build.build_output_path):
+        continue
+      shutil.rmtree(build.build_output_path)
 
 
 class MacBuild(BuildObject):
@@ -582,7 +909,7 @@ class MacBuild(BuildObject):
                                        MAC_EXCLUDE_OBJECTS):
       command.append('-Wl,-force_load,{}'.format(filename))
 
-    library_name = 'lib{}.dylib'.format(self.target)
+    library_name = 'lib{}_{}.dylib'.format(self.target, self.target_platform)
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend([
       '-o', library_path,
@@ -602,7 +929,7 @@ class MacBuild(BuildObject):
     return library_path
 
   def link_static_library(self):
-    library_name = 'lib{}.a'.format(self.target)
+    library_name = 'lib{}_{}.a'.format(self.target, self.target_platform)
     return os.path.join(self.build_output_path, 'obj', 'stellite',
                         library_name)
 
@@ -650,6 +977,13 @@ class IOSBuild(BuildObject):
 
     self.link_fat_library(lib_list)
 
+  def clean(self):
+    for arch in ('arm', 'arm64', 'x86', 'x64'):
+      build = IOSBuild(self.target, self.target_type, arch)
+      if not os.path.exists(build.build_output_path):
+        continue
+      shutil.rmtree(build.build_output_path)
+
   def package_target(self):
     if self.target_type == STATIC_LIBRARY:
       return self.link_static_library()
@@ -657,11 +991,12 @@ class IOSBuild(BuildObject):
       return self.link_shared_library()
 
   def link_shared_library(self):
+    library_name = 'lib{}_{}.dylib'.format(self.target, self.target_arch)
+
     sdk_path = self.iphone_sdk_path
     if self.target_arch in ('x86', 'x64'):
       sdk_path = self.simulator_sdk_path
 
-    lib_filename = 'lib{}.dylib'.format(self.target)
     command = [
       self.clang_compiler_path,
       '-shared',
@@ -670,15 +1005,15 @@ class IOSBuild(BuildObject):
       '-miphoneos-version-min=9.0',
       '-isysroot', sdk_path,
       '-arch', self.clang_target_arch,
-      '-install_name', '@loader_path/{}'.format(lib_filename),
+      '-install_name', '@loader_path/{}'.format(library_name),
     ]
     for filename in self.pattern_files(self.build_output_path, '*.a',
                                        IOS_EXCLUDE_OBJECTS):
       command.append('-Wl,-force_load,{}'.format(filename))
 
-    lib_filepath = os.path.join(self.build_output_path, lib_filename)
+    library_path = os.path.join(self.build_output_path, library_name)
     command.extend([
-      '-o', lib_filepath,
+      '-o', library_path,
       '-stdlib=libc++',
       '-lresolv',
       '-framework', 'CFNetwork',
@@ -692,9 +1027,11 @@ class IOSBuild(BuildObject):
       '-framework', 'UIKit',
     ])
     self.execute(command)
-    return lib_filepath
+    return library_path
 
   def link_static_library(self):
+    library_name = 'lib{}_{}.a'.format(self.target, self.target_arch)
+
     libtool_path = which_application('libtool')
     if not libtool_path:
       raise Exception('libtool is not exist error')
@@ -707,13 +1044,12 @@ class IOSBuild(BuildObject):
                                        IOS_EXCLUDE_OBJECTS):
       command.append(os.path.join(self.build_output_path, filename))
 
-    lib_filename = 'lib{}.a'.format(self.target)
-    lib_filepath = os.path.join(self.build_output_path, lib_filename)
+    library_path = os.path.join(self.build_output_path, library_name)
     command.extend([
-      '-o', lib_filepath,
+      '-o', library_path
     ])
     self.execute(command)
-    return lib_filepath
+    return library_path
 
   def link_fat_library(self, from_list):
     command = ['lipo', '-create']
@@ -741,13 +1077,61 @@ class LinuxBuild(BuildObject):
     super(self.__class__, self).__init__(target, target_type, LINUX)
 
   def build(self):
-    pass
+    self.generate_ninja_script()
+    self.build_target()
+    self.package_target()
+
+  def package_target(self):
+    if self.target_type == STATIC_LIBRARY:
+      return self.link_static_library()
+    if self.target_type == SHARED_LIBRARY:
+      return self.link_shared_library()
+
+    raise Exception('invalid target type error')
+
+  def link_static_library(self):
+    library_name = 'lib{}.a'.format(self.target)
+    library_path = os.path.join(self.build_output_path, library_name)
+
+    command = [ 'ar', 'rsc', library_path, ]
+    for filename in self.pattern_files(self.build_output_path, '*.o'):
+      command.append(filename)
+    self.execute(command)
+
+    return library_path
+
+  def link_shared_library(self):
+    library_name = 'lib{}.a'.format(self.target)
+    library_path = os.path.join(self.build_output_path, library_name)
+
+    command = [
+      self.clang_compiler_path,
+      '-shared',
+      '-Wl,--fatal-warnings',
+      '-fPIC',
+      '-Wl,-z,noexecstack',
+      '-Wl,-z,now',
+      '-Wl,-z,relro',
+      '-Wl,--no-as-needed',
+      '-lpthread',
+      '-Wl,--as-needed',
+      '-fuse-ld=gold',
+      '-Wl,--icf=all',
+      '-pthread',
+      '-m64',
+      '-Wl,--export-dynamic',
+      '-o', library_path,
+      '-Wl,-soname="{}"'.format(library_name),
+    ]
+
+    for filename in self.pattern_files(self.build_output_path, '*.o'):
+      command.append(filename)
+
+    self.execute(command)
+    return library_path
 
   def fetch_toolchain(self):
     return True
-
-  def package_target(self):
-    pass
 
 
 def main(args):
