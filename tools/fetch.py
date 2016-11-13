@@ -4,13 +4,14 @@
 
 import argparse
 import distutils.spawn
-import fnmatch
 import multiprocessing
 import os
+import fnmatch
 import platform
 import shutil
 import subprocess
 import sys
+import pipes
 
 ANDROID = 'android'
 BUILD = 'build'
@@ -24,10 +25,13 @@ MAC = 'mac'
 SHARED_LIBRARY = 'shared_library'
 STATIC_LIBRARY = 'static_library'
 STELLITE_HTTP_CLIENT = 'stellite_http_client'
+STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
 STELLITE_QUIC_SERVER = 'stellite_quic_server'
+QUIC_CLIENT = 'quic_client'
 TARGET = 'target'
 UBUNTU = 'ubuntu'
 ALL = 'all'
+WINDOWS = 'windows'
 
 GIT_DEPOT = 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
 
@@ -88,6 +92,14 @@ target_cpu = "{}"
 target_os = "android"
 """
 
+GN_ARGS_WINDOWS = """
+is_component_build = false
+is_debug = false
+symbol_level = 1
+target_cpu = "x64"
+target_os = "win"
+"""
+
 CHROMIUM_DEPENDENCY_DIRECTORIES = [
   'base',
   'build',
@@ -123,6 +135,36 @@ CHROMIUM_DEPENDENCY_DIRECTORIES = [
 ]
 
 ANDROID_DEPENDENCY_DIRECTORIES = [
+  'build',
+  'build_overrides',
+  'buildtools',
+  'components/url_matcher',
+  'crypto',
+  'net',
+  'sdch',
+  'testing',
+  'third_party/apple_apsl',
+  'third_party/binutils',
+  'third_party/boringssl',
+  'third_party/brotli',
+  'third_party/ced',
+  'third_party/closure_compiler',
+  'third_party/drmemory',
+  'third_party/icu',
+  'third_party/instrumented_libraries',
+  'third_party/libxml/',
+  'third_party/llvm-build',
+  'third_party/modp_b64',
+  'third_party/protobuf',
+  'third_party/pyftpdlib',
+  'third_party/pywebsocket',
+  'third_party/re2',
+  'third_party/tcmalloc',
+  'third_party/tlslite',
+  'third_party/yasm',
+  'third_party/zlib',
+  'tools',
+  'url',
   'v8',
   'third_party/WebKit',
   'third_party/accessibility_test_framework',
@@ -153,6 +195,39 @@ ANDROID_DEPENDENCY_DIRECTORIES = [
   'third_party/ow2_asm',
   'third_party/robolectric',
   'third_party/sqlite4java',
+]
+
+WINDOWS_DEPENDENCY_DIRECTORIES = [
+  'base',
+  'build',
+  'build_overrides',
+  'buildtools',
+  'components/url_matcher',
+  'crypto',
+  'net',
+  'sdch',
+  'testing',
+  'third_party/apple_apsl',
+  'third_party/binutils',
+  'third_party/boringssl',
+  'third_party/brotli',
+  'third_party/ced',
+  'third_party/closure_compiler',
+  'third_party/drmemory',
+  'third_party/icu',
+  'third_party/instrumented_libraries',
+  'third_party/libxml/',
+  'third_party/modp_b64',
+  'third_party/protobuf',
+  'third_party/pyftpdlib',
+  'third_party/pywebsocket',
+  'third_party/re2',
+  'third_party/tcmalloc',
+  'third_party/tlslite',
+  'third_party/yasm',
+  'third_party/zlib',
+  'tools',
+  'url',
 ]
 
 MAC_EXCLUDE_OBJECTS = [
@@ -190,17 +265,20 @@ def detect_host_arch():
 def option_parser(args):
   """fetching tools arguments parser"""
   parser = argparse.ArgumentParser()
-  parser.add_argument('--target-platform', choices=[LINUX, ANDROID, IOS, MAC],
+  parser.add_argument('--target-platform', choices=[LINUX, ANDROID, IOS, MAC, WINDOWS],
                       help='default platform {}'.format(detect_host_platform()),
                       default=detect_host_platform())
 
   parser.add_argument('--target',
-                      choices=[STELLITE_QUIC_SERVER, STELLITE_HTTP_CLIENT],
+                      choices=[STELLITE_QUIC_SERVER, STELLITE_HTTP_CLIENT,
+                               STELLITE_HTTP_CLIENT_BIN, QUIC_CLIENT],
                       default=STELLITE_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
                       choices=[STATIC_LIBRARY, SHARED_LIBRARY],
                       default=STATIC_LIBRARY)
+
+  parser.add_argument('-v', '--verbose', action='store_true')
 
   parser.add_argument('action', choices=[CLEAN, BUILD], default=BUILD)
 
@@ -219,6 +297,9 @@ def build_object(options):
 
   if options.target_platform == LINUX:
     return LinuxBuild(options.target, options.target_type)
+
+  if options.target_platform == WINDOWS:
+    return WindowsBuild(options.target, options.target_type)
 
   raise Exception('unsupported target_platform: {}'.format(options.target_type))
 
@@ -244,13 +325,17 @@ def copy_tree(src, dest):
 class BuildObject(object):
   """build stellite client and server"""
 
-  def __init__(self, target=None, target_type=None, target_platform=None):
+  def __init__(self, target, target_type, target_platform, verbose=False):
     self._target = target
     self._target_type = target_type
     self._target_platform = target_platform
+    self._vervose = verbose
 
     self.fetch_depot_tools()
 
+  @property
+  def verbose(self):
+    return self._verbose
   @property
   def target(self):
     return self._target
@@ -348,6 +433,10 @@ class BuildObject(object):
   def mac_sdk_path(self):
     return self.xcode_sdk_path('macosx')
 
+  @property
+  def dependency_directories(self):
+    return CHROMIUM_DEPENDENCY_DIRECTORIES
+
   def xcode_sdk_path(self, osx_target):
     """return xcode sdk path"""
     command = ['xcrun', '-sdk', osx_target, '--show-sdk-path']
@@ -357,7 +446,7 @@ class BuildObject(object):
 
   def execute_with_error(self, command, env=None, cwd=None):
     env = env or os.environ.copy()
-    print('$ {}'.format(' '.join(command)))
+    print('Running: %s' % (' '.join(pipes.quote(x) for x in command)))
 
     job = subprocess.Popen(command, env=env, cwd=cwd)
     return job.wait() == 0
@@ -504,23 +593,15 @@ class BuildObject(object):
       return True
 
     cwd = self.chromium_src_path
-    print('working dir: {}'.format(cwd))
 
-    print('fetch chromium tags ...')
     self.execute(['git', 'fetch', '--tags'], cwd=cwd)
-
-    print('reset chromium ...')
     self.execute(['git', 'reset', '--hard'], cwd=cwd)
 
     branch = 'chromium_{}'.format(self.chromium_tag)
-    print('checkout: {}'.format(branch))
-
     if not self.execute_with_error(['git', 'checkout', branch], cwd=cwd):
-      print('change chromium tag: {}'.format(self.chromium_tag))
       make_branch_command = ['git', 'checkout', '-b', branch, self.chromium_tag]
       self.execute(make_branch_command, cwd=cwd)
 
-    print('gclient sync ...')
     command = [self.gclient_path, 'sync', '--with_branch_heads',
                '--jobs', str(multiprocessing.cpu_count() * 4)]
     self.execute(command, cwd=cwd)
@@ -531,7 +612,7 @@ class BuildObject(object):
       print('make {} ...'.format(self.buildspace_src_path))
       os.makedirs(self.buildspace_src_path)
 
-    for target_dir in CHROMIUM_DEPENDENCY_DIRECTORIES:
+    for target_dir in self.dependency_directories:
       if os.path.exists(os.path.join(self.buildspace_src_path, target_dir)):
         continue
       print('copy chromium {} ...'.format(target_dir))
@@ -550,6 +631,10 @@ class BuildObject(object):
                 self.buildspace_src_path)
 
     print('copy stellite files...')
+    self.copy_stellite_code()
+
+  def copy_stellite_code(self):
+    """copy stellite code to buildspace"""
     command = ['ln', '-s', self.stellite_path]
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
@@ -590,14 +675,16 @@ class BuildObject(object):
 
   def clean(self):
     """clean buildspace"""
+    if not os.path.exists(self.build_output_path):
+      return
     shutil.rmtree(self.build_output_path)
 
 
 class AndroidBuild(BuildObject):
   """android build"""
-  def __init__(self, target, target_type, target_arch=None):
+  def __init__(self, target, target_type, verbose, target_arch=None):
     self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(target, target_type, ANDROID)
+    super(self.__class__, self).__init__(target, target_type, verbose, ANDROID)
 
   @property
   def target_arch(self):
@@ -731,6 +818,10 @@ class AndroidBuild(BuildObject):
     if self.target_arch == 'x64':
       return 'x86_64-linux-androideabi'
     raise Exception('unknown target architecture error')
+
+  @property
+  def dependency_directories(self):
+    return ANDROID_DEPENDENCY_DIRECTORIES
 
   def synchronize_buildspace(self):
     super(self.__class__, self).synchronize_buildspace()
@@ -1132,6 +1223,38 @@ class LinuxBuild(BuildObject):
 
   def fetch_toolchain(self):
     return True
+
+class WindowsBuild(BuildObject):
+  """windows build"""
+  def __init__(self, target, target_type):
+    super(self.__class__, self).__init__(target, target_type, WINDOWS)
+
+  @property
+  def python_path(self):
+    return os.path.join(self.depot_tools_path, )
+
+  @property
+  def dependency_directories(self):
+    return WINDOWS_DEPENDENCY_DIRECTORIES
+
+  def execute_with_error(self, command, cwd=None, env=None):
+    print('Running: %s' % (' '.join(pipes.quote(x) for x in command)))
+    
+    env = env or os.environ.copy()
+    env['DEPOT_TOOLS_WIN_TOOLCHAIN'] = '0'
+    job = subprocess.Popen(command, cwd=cwd, env=env, shell=True)
+    return job.wait() == 0
+
+  def copy_stellite_code(self):
+    """copy stellite code to buildspace"""
+    stellite_buildspace_path = os.path.join(self.buildspace_src_path, 'stellite')
+    if os.path.exists(stellite_buildspace_path):
+      shutil.rmtree(stellite_buildspace_path)
+    copy_tree(self.stellite_path, stellite_buildspace_path)
+
+  def build(self):
+    self.generate_ninja_script(gn_args=GN_ARGS_WINDOWS)
+    self.build_target()
 
 
 def main(args):
