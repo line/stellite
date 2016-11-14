@@ -66,6 +66,8 @@ is_component_build = false
 """
 
 GN_ARGS_IOS = """
+disable_file_support = true
+disable_ftp_support = true
 enable_dsyms = false
 enable_stripping = enable_dsyms
 ios_enable_code_signing = false
@@ -80,6 +82,8 @@ use_xcode_clang = is_official_build
 """
 
 GN_ARGS_ANDROID = """
+disable_file_support = true
+disable_ftp_support = true
 is_clang = true
 is_component_build = false
 is_debug = false
