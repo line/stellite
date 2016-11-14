@@ -1,0 +1,163 @@
+
+# This is the root build file for GN. GN will start processing by loading this
+# file, and recursively load all dependencies until all dependencies are either
+# resolved or known not to exist (which will cause the build to fail). So if
+# you add a new build file, there must be some path of dependencies from this
+# file to your new one or GN won't know about it.
+
+import("//build/buildflag_header.gni")
+import("//build/config/chromecast_build.gni")
+import("//build/config/compiler/compiler.gni")
+import("//build/config/crypto.gni")
+import("//build/config/features.gni")
+import("//build/config/ui.gni")
+
+executable("stellite_quic_server") {
+  sources = [
+    "crypto/quic_ephemeral_key_source.cc",
+    "crypto/quic_ephemeral_key_source.h",
+    "fetcher/http_fetcher.cc",
+    "fetcher/http_fetcher.h",
+    "fetcher/http_fetcher_core.cc",
+    "fetcher/http_fetcher_core.h",
+    "fetcher/http_fetcher_impl.cc",
+    "fetcher/http_fetcher_impl.h",
+    "fetcher/http_fetcher_task.cc",
+    "fetcher/http_fetcher_task.h",
+    "fetcher/http_request_context_getter.cc",
+    "fetcher/http_request_context_getter.h",
+    "fetcher/http_rewrite.cc",
+    "fetcher/http_rewrite.h",
+    "fetcher/spdy_utils.cc",
+    "fetcher/spdy_utils.h",
+    "logging/file_switch.cc",
+    "logging/file_switch.h",
+    "logging/file_switch_per_date.cc",
+    "logging/file_switch_per_date.h",
+    "logging/log_file.h",
+    "logging/log_file_factory.h",
+    "logging/log_file_factory_default.cc",
+    "logging/log_file_factory_default.h",
+    "logging/log_file_posix.cc",
+    "logging/log_file_posix.h",
+    "logging/log_file_writer.cc",
+    "logging/log_file_writer.h",
+    "logging/logging.cc",
+    "logging/logging.h",
+    "logging/logging_service.cc",
+    "logging/logging_service.h",
+    "process/daemon.cc",
+    "process/daemon.h",
+    "server/parse_util.cc",
+    "server/parse_util.h",
+    "server/proxy_stream.cc",
+    "server/proxy_stream.h",
+    "server/quic_thread_server.cc",
+    "server/quic_thread_server.h",
+    "server/server_config.cc",
+    "server/server_config.h",
+    "server/server_packet_writer.cc",
+    "server/server_packet_writer.h",
+    "server/server_per_connection_packet_writer.cc",
+    "server/server_per_connection_packet_writer.h",
+    "server/server_session.cc",
+    "server/server_session.h",
+    "server/server_session_helper.cc",
+    "server/server_session_helper.h",
+    "server/thread_dispatcher.cc",
+    "server/thread_dispatcher.h",
+    "server/thread_worker.cc",
+    "server/thread_worker.h",
+    "socket/quic_udp_server_socket.cc",
+    "socket/quic_udp_server_socket.h",
+    "socket/quic_udp_socket.h",
+    "socket/quic_udp_socket_posix.cc",
+    "socket/quic_udp_socket_posix.h",
+    "stats/server_stats.cc",
+    "stats/server_stats.h",
+    "stats/server_stats_macro.h",
+    "stats/server_stats_recorder.cc",
+    "stats/server_stats_recorder.h",
+  ]
+
+  deps = [
+    "//components/url_matcher",
+    "//base",
+    "//net",
+    "//net:simple_quic_tools",
+    "//build/config/sanitizers:deps",
+    "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
+    "//third_party/re2",
+  ]
+}
+
+component("stellite_http_client") {
+  sources = [
+    "client/backend_cache.cc",
+    "client/backend_cache.h",
+    "client/backend_factory.cc",
+    "client/backend_factory.h",
+    "client/cache_based_quic_server_info.cc",
+    "client/cache_based_quic_server_info.h",
+    "client/cache_based_quic_server_info_factory.cc",
+    "client/cache_based_quic_server_info_factory.h",
+    "client/contents_filter_context.cc",
+    "client/contents_filter_context.h",
+    "client/network_transaction_client.cc",
+    "client/network_transaction_client.h",
+    "client/network_transaction_consumer.cc",
+    "client/network_transaction_consumer.h",
+    "client/network_transaction_factory.cc",
+    "client/network_transaction_factory.h",
+    "client/http_ssl_config_service.cc",
+    "client/http_ssl_config_service.h",
+    "client/http_client_impl.cc",
+    "client/http_client_impl.h",
+    "client/http_client_context.cc",
+    "client/http_request.cc",
+    "client/http_response.cc",
+    "client/logging.cc",
+    "include/http_client.h",
+    "include/http_client_context.h",
+    "include/http_request.h",
+    "include/http_response.h",
+    "include/logging.h",
+    "include/stellite_export.h",
+  ]
+
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+    "COMPONENT_BUILD",
+  ]
+
+  deps = [
+    "//base",
+    "//net",
+    "//url",
+    "//base/third_party/dynamic_annotations",
+  ]
+}
+
+executable("stellite_http_client_bin") {
+  sources = [
+    "http_client_bin.cc",
+  ]
+
+  deps = [
+    ":stellite_http_client",
+    "//base",
+    "//net",
+    "//url",
+    "//base/third_party/dynamic_annotations",
+  ]
+
+#  deps = [
+#    "//net",
+#    "//net:simple_quic_tools",
+#    "//base",
+#    "//build/config/sanitizers:deps",
+#    "//build/win/default_exe_minifest",
+#    "//url",
+#  ]
+}
