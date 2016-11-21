@@ -33,7 +33,7 @@ class HttpResponseDelegate;
 // related to an HTTP request.
 class STELLITE_EXPORT HttpClientContext {
  public:
-  struct Params {
+  struct STELLITE_EXPORT Params {
     Params();
     Params(const Params& other);
     ~Params();

@@ -97,9 +97,9 @@ target_os = "android"
 """
 
 GN_ARGS_WINDOWS = """
-is_component_build = false
+is_component_build = true
 is_debug = false
-symbol_level = 1
+symbol_level = 0
 target_cpu = "x64"
 target_os = "win"
 """
@@ -201,7 +201,7 @@ ANDROID_DEPENDENCY_DIRECTORIES = [
   'third_party/sqlite4java',
 ]
 
-WINDOWS_DEPENDENCY_DIRECTORIES = [
+WINDOWS_DEPENDENCY_DIRECTORIES= [
   'base',
   'build',
   'build_overrides',
@@ -211,6 +211,7 @@ WINDOWS_DEPENDENCY_DIRECTORIES = [
   'net',
   'sdch',
   'testing',
+  'third_party/llvm-build',
   'third_party/apple_apsl',
   'third_party/binutils',
   'third_party/boringssl',
@@ -248,6 +249,84 @@ IOS_EXCLUDE_OBJECTS = [
 
 ANDROID_EXCLUDE_OBJECTS = [
   #'cpu_features.cpu-features.o',
+]
+
+WINDOWS_EXCLUDE_OBJETS = [
+'protobuf_full/any.obj',
+'protobuf_full/any.pb.obj',
+'protobuf_full/api.pb.obj',
+'protobuf_full/arena.obj',
+'protobuf_full/arenastring.obj',
+'protobuf_full/atomicops_internals_x86_gcc.obj',
+'protobuf_full/atomicops_internals_x86_msvc.obj',
+'protobuf_full/bytestream.obj',
+'protobuf_full/coded_stream.obj',
+'protobuf_full/common.obj',
+'protobuf_full/datapiece.obj',
+'protobuf_full/default_value_objectwriter.obj',
+'protobuf_full/descriptor.obj',
+'protobuf_full/descriptor.pb.obj',
+'protobuf_full/descriptor_database.obj',
+'protobuf_full/duration.pb.obj',
+'protobuf_full/dynamic_message.obj',
+'protobuf_full/empty.pb.obj',
+'protobuf_full/error_listener.obj',
+'protobuf_full/extension_set.obj',
+'protobuf_full/extension_set_heavy.obj',
+'protobuf_full/field_comparator.obj',
+'protobuf_full/field_mask.pb.obj',
+'protobuf_full/field_mask_util.obj',
+'protobuf_full/field_mask_utility.obj',
+'protobuf_full/generated_message_reflection.obj',
+'protobuf_full/generated_message_util.obj',
+'protobuf_full/importer.obj',
+'protobuf_full/int128.obj',
+'protobuf_full/json_escaping.obj',
+'protobuf_full/json_objectwriter.obj',
+'protobuf_full/json_stream_parser.obj',
+'protobuf_full/json_util.obj',
+'protobuf_full/map_field.obj',
+'protobuf_full/mathlimits.obj',
+'protobuf_full/message.obj',
+'protobuf_full/message_differencer.obj',
+'protobuf_full/message_lite.obj',
+'protobuf_full/object_writer.obj',
+'protobuf_full/once.obj',
+'protobuf_full/parser.obj',
+'protobuf_full/printer.obj',
+'protobuf_full/protostream_objectsource.obj',
+'protobuf_full/protostream_objectwriter.obj',
+'protobuf_full/proto_writer.obj',
+'protobuf_full/reflection_ops.obj',
+'protobuf_full/repeated_field.obj',
+'protobuf_full/service.obj',
+'protobuf_full/source_context.pb.obj',
+'protobuf_full/status.obj',
+'protobuf_full/statusor.obj',
+'protobuf_full/stringpiece.obj',
+'protobuf_full/stringprintf.obj',
+'protobuf_full/strtod.obj',
+'protobuf_full/struct.pb.obj',
+'protobuf_full/structurally_valid.obj',
+'protobuf_full/strutil.obj',
+'protobuf_full/substitute.obj',
+'protobuf_full/text_format.obj',
+'protobuf_full/time.obj',
+'protobuf_full/timestamp.pb.obj',
+'protobuf_full/time_util.obj',
+'protobuf_full/tokenizer.obj',
+'protobuf_full/type.pb.obj',
+'protobuf_full/type_info.obj',
+'protobuf_full/type_info_test_helper.obj',
+'protobuf_full/type_resolver_util.obj',
+'protobuf_full/unknown_field_set.obj',
+'protobuf_full/utility.obj',
+'protobuf_full/wire_format.obj',
+'protobuf_full/wire_format_lite.obj',
+'protobuf_full/wrappers.pb.obj',
+'protobuf_full/zero_copy_stream.obj',
+'protobuf_full/zero_copy_stream_impl.obj',
+'protobuf_full/zero_copy_stream_impl_lite.obj',
 ]
 
 def detect_host_platform():
@@ -357,7 +436,7 @@ class BuildObject(object):
 
   @property
   def root_path(self):
-    """return root absolute path"""
+    """reprotobuf_full/turn root absolute path"""
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
   @property
@@ -1243,11 +1322,82 @@ class WindowsBuild(BuildObject):
 
   @property
   def python_path(self):
-    return os.path.join(self.depot_tools_path, )
+    return os.path.join(self.depot_tools_path, 'python276_bin', 'python.exe')
 
   @property
   def dependency_directories(self):
     return WINDOWS_DEPENDENCY_DIRECTORIES
+
+  @property
+  def vs_path(self):
+    if hasattr(self, '_vs_path'):
+      return self._vs_path
+
+    self.get_vs_toolchain()
+    return self._vs_path
+
+  @property
+  def sdk_path(self):
+    if hasattr(self, '_sdk_path'):
+      return self._sdk_path
+    self.get_vs_toolchain()
+    return self._sdk_path
+
+  @property
+  def vs_version(self):
+    if hasattr(self, '_vs_version'):
+      return self._vs_version
+    self.get_vs_toolchain()
+    return self._vs_version
+
+  @property
+  def wdk_dir(self):
+    if hasattr(self, '_wdk_dir'):
+      return self._wdk_dir
+    self.get_vs_toolchain()
+    return self._wdk_version
+
+  @property
+  def runtime_dirs(self):
+    if hasattr(self, '_runtime_dirs'):
+      return self._runtime_dirs
+    self.get_vs_toolchain()
+    return self._runtime_dirs()
+
+  @property
+  def tool_wrapper_path(self):
+    return os.path.join(self.chromium_src_path, 'build', 'toolchain', 'win',
+                        'tool_wrapper.py')
+
+  @property
+  def build_response_file_path(self):
+    return os.path.join(self.build_output_path, 'stellite_build.rsp')
+
+  def get_vs_toolchain(self):
+    command = [
+      self.python_path,
+      os.path.join(self.chromium_src_path, 'build', 'vs_toolchain.py'),
+      'get_toolchain_dir'
+    ]
+
+    env = os.environ.copy()
+    env['DEPOT_TOOLS_WIN_TOOLCHAIN'] = '0'
+    job = subprocess.Popen(command, stdout=subprocess.PIPE, env=env)
+    job.wait()
+    stdout = job.stdout.read().strip()
+
+    toolchain = dict()
+    for toolchain_line in stdout.split('\n'):
+      unpacked = map(lambda x : x.strip().lower(), toolchain_line.split('='))
+      if len(unpacked) != 2:
+        continue
+      toolchain[unpacked[0]] = unpacked[1]
+    
+    self._vs_path = toolchain.get('vs_path')
+    self._vs_version = toolchain.get('vs_version')
+    self._sdk_path = toolchain.get('sdk_path')
+    self._sdk_dir = toolchain.get('wdk_dir')
+    self._runtime_dirs = toolchain.get('runtime_dirs').split(';')
 
   def execute_with_error(self, command, cwd=None, env=None):
     print('Running: %s' % (' '.join(pipes.quote(x) for x in command)))
@@ -1265,10 +1415,104 @@ class WindowsBuild(BuildObject):
       shutil.rmtree(stellite_buildspace_path)
     copy_tree(self.stellite_path, stellite_buildspace_path)
 
+  def package_target(self):
+    if self.target_type == STATIC_LIBRARY:
+      return self.link_static_library()
+    if self.target_type == SHARED_LIBRARY:
+      return self.link_shared_library()
+    raise Exception('invalid target type error')
+
+  def link_static_library(self):
+    pass
+
+  def link_shared_library(self):
+    library_name = 'lib{}.dll'.format(self.target)
+    library_path = os.path.join(self.build_output_path, library_name)
+    pdb_name = 'lib{}.pdb'.format(self.target)
+    pdb_path = os.path.join(self.build_output_path, pdb_name)
+    command = [
+      self.python_path,
+      self.tool_wrapper_path,
+      'link-wrapper',
+      'environment.x64',
+      'False',
+      'link.exe',
+      '/nologo',
+      '/IMPLIB:{}.lib'.format(library_path),
+      '/DLL',
+      '/OUT:{}'.format(library_path),
+      '/PDB:{}'.format(pdb_path),
+      '@{}'.format(self.build_response_file_path),
+    ]
+
+    link_params = [
+      #'/NOENTRY',
+      '/MACHINE:X64',
+      '/FIXED:NO',
+      '/ignore:4199',
+      '/ignore:4221',
+      '/NXCOMPAT',
+      '/fastfail',
+      '/DYNAMICBASE',
+      '/INCREMENTAL',
+      '/SUBSYSTEM:CONSOLE,5.02',
+      '/LIBPATH:"{}"'.format(os.path.join(self.sdk_path,
+                                          'Lib/winv6.3/um/x64')),
+      '/LIBPATH:{}'.format(os.path.join(self.vs_path, 'VC/lib/amd64')),
+      '/LIBPATH:{}'.format(os.path.join(self.vs_path, 'VC/atlmfc/lib/amd64')),
+      '/DELAYLOAD:cfgmgr32.dll',
+      '/DELAYLOAD:powrprof.dll',
+      '/DELAYLOAD:setupapi.dll',
+      'crypt32.lib',
+      'dhcpcsvc.lib',
+      'iphlpapi.lib',
+      'ncrypt.lib',
+      'rpcrt4.lib',
+      'secur32.lib',
+      'urlmon.lib',
+      'winhttp.lib',
+      'advapi32.lib',
+      'comdlg32.lib',
+      'dbghelp.lib',
+      'delayimp.lib',
+      'dnsapi.lib',
+      'gdi32.lib',
+      'kernel32.lib',
+      'msimg32.lib',
+      'odbc32.lib',
+      'odbccp32.lib',
+      'ole32.lib',
+      'oleaut32.lib',
+      'psapi.lib',
+      'shell32.lib',
+      'shlwapi.lib',
+      'user32.lib',
+      'usp10.lib',
+      'uuid.lib',
+      'version.lib',
+      'wininet.lib',
+      'winmm.lib',
+      'winspool.lib',
+      'ws2_32.lib',
+    ]
+    for lib_file_path in self.pattern_files(self.build_output_path,
+                                            '*.obj'):
+      link_params.append(lib_file_path)
+    print lib_file_path
+
+    if os.path.exists(self.build_response_file_path):
+      os.remove(self.build_response_file_path)
+
+    with open(self.build_response_file_path, 'w') as response_file:
+      for parameter in link_params:
+        response_file.write('"{}"\n'.format(parameter))
+
+    self.execute(command, cwd=self.build_output_path)
+
   def build(self):
     self.generate_ninja_script(gn_args=GN_ARGS_WINDOWS)
     self.build_target()
-
+    self.package_target()
 
 def main(args):
   """main entry point"""

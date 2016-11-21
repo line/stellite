@@ -128,7 +128,7 @@ component("stellite_http_client") {
 
   defines = [
     "STELLITE_IMPLEMENTATION",
-    "COMPONENT_BUILD",
+    "COMPONENT_BUILD", 
   ]
 
   deps = [
@@ -149,15 +149,9 @@ executable("stellite_http_client_bin") {
     "//base",
     "//net",
     "//url",
-    "//base/third_party/dynamic_annotations",
+    "//build/win:default_exe_manifest",
+    "//build/config/sanitizers:deps",
+    "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
   ]
-
-#  deps = [
-#    "//net",
-#    "//net:simple_quic_tools",
-#    "//base",
-#    "//build/config/sanitizers:deps",
-#    "//build/win/default_exe_minifest",
-#    "//url",
-#  ]
 }
