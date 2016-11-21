@@ -128,7 +128,7 @@ component("stellite_http_client") {
 
   defines = [
     "STELLITE_IMPLEMENTATION",
-    "COMPONENT_BUILD", 
+    "COMPONENT_BUILD",
   ]
 
   deps = [
@@ -142,6 +142,24 @@ component("stellite_http_client") {
 executable("stellite_http_client_bin") {
   sources = [
     "http_client_bin.cc",
+  ]
+
+  deps = [
+    ":stellite_http_client",
+    "//base",
+    "//net",
+    "//url",
+    "//build/win:default_exe_manifest",
+    "//build/config/sanitizers:deps",
+    "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
+  ]
+}
+
+component("stellite_client_binder") {
+  sources = [
+    "stub/client_binder.h",
+    "stub/client_binder.cc",
   ]
 
   deps = [
