@@ -97,7 +97,7 @@ target_os = "android"
 """
 
 GN_ARGS_WINDOWS = """
-is_component_build = true
+is_component_build = {}
 is_debug = false
 symbol_level = 0
 target_cpu = "x64"
@@ -345,6 +345,7 @@ def detect_host_os():
 def detect_host_arch():
   return platform.uname()[4]
 
+
 def option_parser(args):
   """fetching tools arguments parser"""
   parser = argparse.ArgumentParser()
@@ -438,6 +439,10 @@ class BuildObject(object):
   def root_path(self):
     """reprotobuf_full/turn root absolute path"""
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+  @property
+  def output_path(self):
+    return os.path.join(self.root_path, 'output')
 
   @property
   def third_party_path(self):
@@ -1319,6 +1324,11 @@ class WindowsBuild(BuildObject):
   def __init__(self, target, target_type, verbose=False):
     super(self.__class__, self).__init__(target, target_type, WINDOWS,
                                          verbose=verbose)
+    self._vs_path = None
+    self._vs_version = None
+    self._sdk_path = None
+    self._sdk_dir = None
+    self._runtime_dirs = None
 
   @property
   def python_path(self):
@@ -1392,7 +1402,7 @@ class WindowsBuild(BuildObject):
       if len(unpacked) != 2:
         continue
       toolchain[unpacked[0]] = unpacked[1]
-    
+
     self._vs_path = toolchain.get('vs_path')
     self._vs_version = toolchain.get('vs_version')
     self._sdk_path = toolchain.get('sdk_path')
@@ -1417,102 +1427,27 @@ class WindowsBuild(BuildObject):
 
   def package_target(self):
     if self.target_type == STATIC_LIBRARY:
-      return self.link_static_library()
+      self.copy_output_files('*.lib')
     if self.target_type == SHARED_LIBRARY:
-      return self.link_shared_library()
+      self.copy_output_files('*.dll')
     raise Exception('invalid target type error')
 
-  def link_static_library(self):
-    pass
+  def copy_output_files(self, pattern):
+    if os.path.exists(self.output_path):
+      os.removedirs(self.output_path)
+    os.makedirs(self.output_path)
 
-  def link_shared_library(self):
-    library_name = 'lib{}.dll'.format(self.target)
-    library_path = os.path.join(self.build_output_path, library_name)
-    pdb_name = 'lib{}.pdb'.format(self.target)
-    pdb_path = os.path.join(self.build_output_path, pdb_name)
-    command = [
-      self.python_path,
-      self.tool_wrapper_path,
-      'link-wrapper',
-      'environment.x64',
-      'False',
-      'link.exe',
-      '/nologo',
-      '/IMPLIB:{}.lib'.format(library_path),
-      '/DLL',
-      '/OUT:{}'.format(library_path),
-      '/PDB:{}'.format(pdb_path),
-      '@{}'.format(self.build_response_file_path),
-    ]
-
-    link_params = [
-      #'/NOENTRY',
-      '/MACHINE:X64',
-      '/FIXED:NO',
-      '/ignore:4199',
-      '/ignore:4221',
-      '/NXCOMPAT',
-      '/fastfail',
-      '/DYNAMICBASE',
-      '/INCREMENTAL',
-      '/SUBSYSTEM:CONSOLE,5.02',
-      '/LIBPATH:"{}"'.format(os.path.join(self.sdk_path,
-                                          'Lib/winv6.3/um/x64')),
-      '/LIBPATH:{}'.format(os.path.join(self.vs_path, 'VC/lib/amd64')),
-      '/LIBPATH:{}'.format(os.path.join(self.vs_path, 'VC/atlmfc/lib/amd64')),
-      '/DELAYLOAD:cfgmgr32.dll',
-      '/DELAYLOAD:powrprof.dll',
-      '/DELAYLOAD:setupapi.dll',
-      'crypt32.lib',
-      'dhcpcsvc.lib',
-      'iphlpapi.lib',
-      'ncrypt.lib',
-      'rpcrt4.lib',
-      'secur32.lib',
-      'urlmon.lib',
-      'winhttp.lib',
-      'advapi32.lib',
-      'comdlg32.lib',
-      'dbghelp.lib',
-      'delayimp.lib',
-      'dnsapi.lib',
-      'gdi32.lib',
-      'kernel32.lib',
-      'msimg32.lib',
-      'odbc32.lib',
-      'odbccp32.lib',
-      'ole32.lib',
-      'oleaut32.lib',
-      'psapi.lib',
-      'shell32.lib',
-      'shlwapi.lib',
-      'user32.lib',
-      'usp10.lib',
-      'uuid.lib',
-      'version.lib',
-      'wininet.lib',
-      'winmm.lib',
-      'winspool.lib',
-      'ws2_32.lib',
-    ]
-    for lib_file_path in self.pattern_files(self.build_output_path,
-                                            '*.obj'):
-      link_params.append(lib_file_path)
-    print lib_file_path
-
-    if os.path.exists(self.build_response_file_path):
-      os.remove(self.build_response_file_path)
-
-    with open(self.build_response_file_path, 'w') as response_file:
-      for parameter in link_params:
-        response_file.write('"{}"\n'.format(parameter))
-
-    self.execute(command, cwd=self.build_output_path)
+    for filename in self.pattern_files(self.build_output_path, pattern):
+      shutil.copy(os.path.join(self.build_output_path, filename),
+                  self.output_path)
 
   def build(self):
-    self.generate_ninja_script(gn_args=GN_ARGS_WINDOWS)
+    is_component = 'false' if self.target_type == STATIC_LIBRARY else 'true'
+    gn_args = GN_ARGS_WINDOWS.format(is_component)
+    self.generate_ninja_script(gn_args=gn_args)
     self.build_target()
     self.package_target()
+
 
 def main(args):
   """main entry point"""
