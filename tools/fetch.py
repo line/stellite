@@ -269,9 +269,12 @@ def detect_host_arch():
 def option_parser(args):
   """fetching tools arguments parser"""
   parser = argparse.ArgumentParser()
-  parser.add_argument('--target-platform', choices=[LINUX, ANDROID, IOS, MAC, WINDOWS],
-                      help='default platform {}'.format(detect_host_platform()),
-                      default=detect_host_platform())
+
+  host_platform = detect_host_platform()
+  parser.add_argument('--target-platform',
+                      choices=[LINUX, ANDROID, IOS, MAC, WINDOWS],
+                      help='default platform {}'.format(host_platform),
+                      default=host_platform)
 
   parser.add_argument('--target',
                       choices=[STELLITE_QUIC_SERVER, STELLITE_HTTP_CLIENT,
@@ -686,9 +689,10 @@ class BuildObject(object):
 
 class AndroidBuild(BuildObject):
   """android build"""
-  def __init__(self, target, target_type, verbose, target_arch=None):
+  def __init__(self, target, target_type, verbose=False, target_arch=None):
     self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(target, target_type, verbose, ANDROID)
+    super(self.__class__, self).__init__(target, target_type, ANDROID,
+                                         verbose=verbose)
 
   @property
   def target_arch(self):
@@ -973,8 +977,9 @@ class AndroidBuild(BuildObject):
 
 class MacBuild(BuildObject):
   """mac build"""
-  def __init__(self, target, target_type):
-    super(self.__class__, self).__init__(target, target_type, MAC)
+  def __init__(self, target, target_type, verbose=False):
+    super(self.__class__, self).__init__(target, target_type, MAC,
+                                         verbose=verbose)
 
   def build(self):
     self.generate_ninja_script()
@@ -1031,9 +1036,10 @@ class MacBuild(BuildObject):
 
 class IOSBuild(BuildObject):
   """ios build"""
-  def __init__(self, target, target_type, target_arch=None):
+  def __init__(self, target, target_type, target_arch=None, verbose=False):
     self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(target, target_type, IOS)
+    super(self.__class__, self).__init__(target, target_type, IOS,
+                                         verbose=verbose)
 
   @property
   def target_arch(self):
@@ -1168,8 +1174,9 @@ class IOSBuild(BuildObject):
 
 class LinuxBuild(BuildObject):
   """linux build"""
-  def __init__(self, target, target_type):
-    super(self.__class__, self).__init__(target, target_type, LINUX)
+  def __init__(self, target, target_type, verbose=False):
+    super(self.__class__, self).__init__(target, target_type, LINUX,
+                                         verbose=verbose)
 
   def build(self):
     self.generate_ninja_script()
@@ -1230,8 +1237,9 @@ class LinuxBuild(BuildObject):
 
 class WindowsBuild(BuildObject):
   """windows build"""
-  def __init__(self, target, target_type):
-    super(self.__class__, self).__init__(target, target_type, WINDOWS)
+  def __init__(self, target, target_type, verbose=False):
+    super(self.__class__, self).__init__(target, target_type, WINDOWS,
+                                         verbose=verbose)
 
   @property
   def python_path(self):
@@ -1243,7 +1251,7 @@ class WindowsBuild(BuildObject):
 
   def execute_with_error(self, command, cwd=None, env=None):
     print('Running: %s' % (' '.join(pipes.quote(x) for x in command)))
-    
+
     env = env or os.environ.copy()
     env['DEPOT_TOOLS_WIN_TOOLCHAIN'] = '0'
     job = subprocess.Popen(command, cwd=cwd, env=env, shell=True)
@@ -1251,7 +1259,8 @@ class WindowsBuild(BuildObject):
 
   def copy_stellite_code(self):
     """copy stellite code to buildspace"""
-    stellite_buildspace_path = os.path.join(self.buildspace_src_path, 'stellite')
+    stellite_buildspace_path = os.path.join(self.buildspace_src_path,
+                                            'stellite')
     if os.path.exists(stellite_buildspace_path):
       shutil.rmtree(stellite_buildspace_path)
     copy_tree(self.stellite_path, stellite_buildspace_path)
