@@ -1,0 +1,68 @@
+
+component("trident_http_client_base") {
+  sources = [
+    "http_client.h",
+    "http_client.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//net",
+    "//stellite:stellite_http_client",
+    "//third_party/boringssl",
+  ]
+
+  defines = [
+    "TRIDENT_STELLITE_IMPLEMENTATION",
+    "COMPONENT_BUILD",
+  ]
+}
+
+executable("trident_http_client_bin") {
+  sources = [
+    "tridnet_client_bin.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//net",
+    "//stellite:stellite_http_client",
+    ":trident_http_client_base",
+  ]
+}
+
+component("trident_base") {
+  sources = [
+    "trident_base.h",
+    "trident_base.cc",
+  ]
+
+  defines = [
+    "TRIDENT_STELLITE_IMPLEMENTATION",
+    "COMPONENT_BUILD",
+  ]
+
+  deps = [
+    "//base",
+  ]
+}
+
+component("trident_base_bin") {
+  sources = [
+    "trident_base_bin.cc",
+  ]
+
+  deps = [
+    ":trident_base",
+  ]
+}
+
+executable("trident_client_binder_bin") {
+  sources = [
+    "trident_client_binder_bin.cc",
+  ]
+
+  deps = [
+    "//stellite:stellite_client_binder",
+  ]
+}
