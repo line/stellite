@@ -34,7 +34,6 @@ TRIDENT_HTTP_CLIENT_BASE = 'trident_http_client_base'
 UBUNTU = 'ubuntu'
 WINDOWS = 'windows'
 
-
 GIT_DEPOT = 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
 
 GCLIENT_IOS = """
@@ -67,7 +66,15 @@ target_os = [\"android\"]
 target_os_only = \"True\"
 """
 
-GN_ARGS = """
+GN_ARGS_LINUX = """
+is_component_build = false
+disable_file_support = true
+disable_ftp_support = true
+target_cpu = "x64"
+target_os = "linux"
+"""
+
+GN_ARGS_MAC = """
 is_component_build = false
 disable_file_support = true
 disable_ftp_support = true
@@ -144,6 +151,7 @@ CHROMIUM_DEPENDENCY_DIRECTORIES = [
 ]
 
 ANDROID_DEPENDENCY_DIRECTORIES = [
+  'base',
   'build',
   'build_overrides',
   'buildtools',
@@ -344,13 +352,15 @@ class BuildObject(object):
     self._target = target
     self._target_type = target_type
     self._target_platform = target_platform
-    self._vervose = verbose
+    self._verbose = verbose
 
     self.fetch_depot_tools()
 
   @property
   def verbose(self):
+    print('verbose: {}'.format(self._verbose))
     return self._verbose
+
   @property
   def target(self):
     return self._target
@@ -519,9 +529,8 @@ class BuildObject(object):
     print('remove chromium code: '.format(self.chromium_path))
     shutil.rmtree(self.chromium_path)
 
-  def generate_ninja_script(self, gn_args=None, gn_options=None):
+  def generate_ninja_script(self, gn_args, gn_options=None):
     """generate ninja build script using gn."""
-    gn_args = gn_args or GN_ARGS
     gn_options = gn_options or []
 
     if not os.path.exists(self.build_output_path):
@@ -666,7 +675,12 @@ class BuildObject(object):
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def build_target(self):
-    command = ['ninja', '-v', '-C', self.build_output_path, self.target]
+    command = ['ninja']
+    if self.verbose:
+      command.append('-v')
+      print('append verbose option')
+
+    command.extend(['-C', self.build_output_path, self.target])
     self.execute(command)
 
   def check_depot_tools_or_install(self):
@@ -976,7 +990,7 @@ class AndroidBuild(BuildObject):
       gn_context = GN_ARGS_ANDROID.format(self.clang_arch(arch))
       gn_context += '\n' + self.appendix_gn_args(arch)
 
-      build = AndroidBuild(self.target, self.target_type, arch)
+      build = AndroidBuild(self.target, self.target_type, target_arch=arch)
       build.generate_ninja_script(gn_args=gn_context)
       build.build_target()
       lib_list.append(build.package_target())
@@ -989,7 +1003,7 @@ class AndroidBuild(BuildObject):
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      build = AndroidBuild(self.target, self.target_type, arch)
+      build = AndroidBuild(self.target, self.target_type, target_arch=arch)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1002,7 +1016,7 @@ class MacBuild(BuildObject):
                                          verbose=verbose)
 
   def build(self):
-    self.generate_ninja_script()
+    self.generate_ninja_script(GN_ARGS_MAC)
     self.build_target()
     self.package_target()
 
@@ -1102,7 +1116,7 @@ class IOSBuild(BuildObject):
   def build(self):
     lib_list = []
     for arch in ('x86', 'x64', 'arm', 'arm64'):
-      build = IOSBuild(self.target, self.target_type, arch)
+      build = IOSBuild(self.target, self.target_type, target_arch=arch)
       build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(arch),
                                   gn_options=['--check'])
       build.build_target()
@@ -1117,7 +1131,7 @@ class IOSBuild(BuildObject):
 
   def clean(self):
     for arch in ('arm', 'arm64', 'x86', 'x64'):
-      build = IOSBuild(self.target, self.target_type, arch)
+      build = IOSBuild(self.target, self.target_type, target_arch=arch)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1216,7 +1230,7 @@ class LinuxBuild(BuildObject):
                                          verbose=verbose)
 
   def build(self):
-    self.generate_ninja_script()
+    self.generate_ninja_script(GN_ARGS_LINUX)
     self.build_target()
     self.package_target()
 
