@@ -75,6 +75,12 @@ target_os = [\"android\"]
 target_os_only = \"True\"
 """
 
+TARGET_ARM_V6 = 'armv6'
+TARGET_ARM_V7 = 'armv7'
+TARGET_ARM_64 = 'arm64'
+TARGET_X86 = 'x86'
+TARGET_X86_64 = 'x86_64'
+
 ANDROID_TARGETS = {
   'armv6': {
     TARGET_ARCH: 'arm',
