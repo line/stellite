@@ -27,10 +27,10 @@ MAC = 'mac'
 QUIC_CLIENT = 'quic_client'
 SHARED_LIBRARY = 'shared_library'
 STATIC_LIBRARY = 'static_library'
+STELLITE_HTTP_CLIENT = 'stellite_http_client'
 STELLITE_QUIC_SERVER = 'stellite_quic_server'
 TARGET = 'target'
-TRIDENT_BASE = 'trident_base'
-TRIDENT_HTTP_CLIENT_BASE = 'trident_http_client_base'
+TRIDENT_HTTP_CLIENT = 'trident_http_client'
 UBUNTU = 'ubuntu'
 WINDOWS = 'windows'
 
@@ -249,14 +249,14 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
 ]
 
 MAC_EXCLUDE_OBJECTS = [
-  'libprotobuf_full_do_not_use.a',
-  'libprotoc_lib.a',
+#  'libprotobuf_full_do_not_use.a',
+#  'libprotoc_lib.a',
   'libprotobuf_full.a',
 ]
 
 IOS_EXCLUDE_OBJECTS = [
-  'libprotobuf_full_do_not_use.a',
-  'libprotoc_lib.a',
+#  'libprotobuf_full_do_not_use.a',
+#  'libprotoc_lib.a',
   'libprotobuf_full.a',
 ]
 
@@ -264,6 +264,9 @@ ANDROID_EXCLUDE_OBJECTS = [
   #'cpu_features.cpu-features.o',
 ]
 
+LINUX_EXCLUDE_OBJECTS = [
+  'libprotobuf_full.a',
+]
 
 def detect_host_platform():
   """detect host architecture"""
@@ -293,9 +296,9 @@ def option_parser(args):
                       default=host_platform)
 
   parser.add_argument('--target',
-                      choices=[STELLITE_QUIC_SERVER, TRIDENT_BASE,
-                               TRIDENT_HTTP_CLIENT_BASE, CLIENT_BINDER],
-                      default=TRIDENT_HTTP_CLIENT_BASE)
+                      choices=[STELLITE_QUIC_SERVER, STELLITE_HTTP_CLIENT,
+                               TRIDENT_HTTP_CLIENT, CLIENT_BINDER],
+                      default=TRIDENT_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
                       choices=[STATIC_LIBRARY, SHARED_LIBRARY],
@@ -358,7 +361,6 @@ class BuildObject(object):
 
   @property
   def verbose(self):
-    print('verbose: {}'.format(self._verbose))
     return self._verbose
 
   @property
@@ -426,7 +428,7 @@ class BuildObject(object):
   @property
   def trident_path(self):
     """return trident_stellite code path"""
-    return os.path.join(self.root_path, 'trident_stellite')
+    return os.path.join(self.root_path, 'trident')
 
   @property
   def modified_files_path(self):
@@ -470,6 +472,18 @@ class BuildObject(object):
   @property
   def dependency_directories(self):
     return CHROMIUM_DEPENDENCY_DIRECTORIES
+
+  @property
+  def stellite_http_client_header_files(self):
+    include_path = os.path.join(self.stellite_path, 'include')
+    return map(lambda x: os.path.join(include_path, x),
+               os.listdir(include_path))
+
+  @property
+  def trident_http_client_header_files(self):
+    include_path = os.path.join(self.trident_path, 'include')
+    return map(lambda x: os.path.join(include_path, x),
+               os.listdir(include_path))
 
   def xcode_sdk_path(self, osx_target):
     """return xcode sdk path"""
@@ -668,8 +682,18 @@ class BuildObject(object):
 
   def copy_stellite_code(self):
     """copy stellite code to buildspace"""
+    stellite_buildspace_path = os.path.join(self.buildspace_src_path,
+                                            'stellite')
+    if os.path.exists(stellite_buildspace_path):
+      os.remove(stellite_buildspace_path)
+
     command = ['ln', '-s', self.stellite_path]
     self.execute_with_error(command, cwd=self.buildspace_src_path)
+
+    trident_buildspace_path = os.path.join(self.buildspace_src_path,
+                                           'trident')
+    if os.path.exists(trident_buildspace_path):
+      os.remove(trident_buildspace_path)
 
     command = ['ln', '-s', self.trident_path]
     self.execute_with_error(command, cwd=self.buildspace_src_path)
@@ -678,8 +702,6 @@ class BuildObject(object):
     command = ['ninja']
     if self.verbose:
       command.append('-v')
-      print('append verbose option')
-
     command.extend(['-C', self.build_output_path, self.target])
     self.execute(command)
 
@@ -865,9 +887,15 @@ class AndroidBuild(BuildObject):
   def dependency_directories(self):
     return ANDROID_DEPENDENCY_DIRECTORIES
 
+  @property
+  def chromium_java_lib_deps(self):
+    # chromium android java library are same for different cpu architecture
+    java_lib_path = os.path.join(self.buildspace_src_path, 'out_android_armv6',
+                                 'obj', 'lib.java')
+    return self.pattern_files(java_lib_path, '*.jar')
+
   def synchronize_buildspace(self):
     super(self.__class__, self).synchronize_buildspace()
-
     buildspace_src = os.path.join(self.buildspace_path, 'src')
     for target_dir in ANDROID_DEPENDENCY_DIRECTORIES:
       if os.path.exists(os.path.join(buildspace_src, target_dir)):
@@ -923,7 +951,6 @@ class AndroidBuild(BuildObject):
                                            self.target_arch)
     command = [
       self.clang_compiler_path,
-      #self.android_compiler_path,
       '-Wl,-shared',
       '-Wl,--fatal-warnings',
       '-fPIC',
@@ -974,7 +1001,8 @@ class AndroidBuild(BuildObject):
       '-llog'
     ])
 
-    if 'arm' in self.target_arch:
+    # armv6, armv7 arch leck of stack trace symbol in stl
+    if self.target_arch in ('armv6', 'armv7'):
       command.append('-lunwind')
 
     library_path = os.path.join(self.build_output_path, library_name)
@@ -985,21 +1013,25 @@ class AndroidBuild(BuildObject):
     return library_path
 
   def build(self):
-    lib_list = []
-    for arch in ('armv6', 'armv7', 'x86', 'x64'):
+    output_list = []
+    for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
       gn_context = GN_ARGS_ANDROID.format(self.clang_arch(arch))
       gn_context += '\n' + self.appendix_gn_args(arch)
 
       build = AndroidBuild(self.target, self.target_type, target_arch=arch)
       build.generate_ninja_script(gn_args=gn_context)
       build.build_target()
-      lib_list.append(build.package_target())
+      output_list.append(build.package_target())
 
-    if not os.path.exists(self.build_output_path):
-      os.makedirs(self.build_output_path)
+    if self.target == STELLITE_HTTP_CLIENT:
+      output_list.extend(self.stellite_http_client_header_files)
 
-    for libfile in lib_list:
-      shutil.copy2(libfile, self.build_output_path)
+    if self.target == TRIDENT_HTTP_CLIENT:
+      output_list.extend(self.trident_http_client_header_files)
+
+    output_list.extend(self.chromium_java_lib_deps)
+
+    return output_list
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
@@ -1018,7 +1050,20 @@ class MacBuild(BuildObject):
   def build(self):
     self.generate_ninja_script(GN_ARGS_MAC)
     self.build_target()
-    self.package_target()
+
+    if self.target == STELLITE_QUIC_SERVER:
+      return [os.path.join(self.build_output_path, self.target)]
+
+    output_list = []
+    output_list.append(self.package_target())
+
+    if self.target == STELLITE_HTTP_CLIENT:
+      output_list.extend(self.stellite_http_client_header_files)
+
+    if self.target == TRIDENT_HTTP_CLIENT:
+      output_list.extend(self.trident_http_client_header_files)
+
+    return output_list
 
   def package_target(self):
     if self.target_type == SHARED_LIBRARY:
@@ -1122,12 +1167,15 @@ class IOSBuild(BuildObject):
       build.build_target()
       lib_list.append(build.package_target())
 
-    fat_library_path = self.link_fat_library(lib_list)
+    output_list = []
+    output_list.append(self.link_fat_library(lib_list))
 
-    if os.path.exists(self.output_path):
-      shutil.rmtree(self.output_path)
-    os.makedirs(self.output_path)
-    shutil.copy(fat_library_path, self.output_path)
+    if self.target == STELLITE_HTTP_CLIENT:
+      output_list.extend(self.stellite_http_client_header_files)
+    if self.target == TRIDENT_HTTP_CLIENT:
+      output_list.extend(self.trident_http_client_header_files)
+
+    return output_list
 
   def clean(self):
     for arch in ('arm', 'arm64', 'x86', 'x64'):
@@ -1232,7 +1280,20 @@ class LinuxBuild(BuildObject):
   def build(self):
     self.generate_ninja_script(GN_ARGS_LINUX)
     self.build_target()
-    self.package_target()
+
+    if self.target == STELLITE_QUIC_SERVER:
+      return [os.path.join(self.build_output_path, self.target)]
+
+    output_list = []
+    output_list.append(self.package_target())
+
+    if self.target == STELLITE_HTTP_CLIENT:
+      output_list.extend(self.stellite_http_client_header_files)
+
+    if self.target == TRIDENT_HTTP_CLIENT:
+      output_list.extend(self.trident_http_client_header_files)
+
+    return output_list
 
   def package_target(self):
     if self.target_type == STATIC_LIBRARY:
@@ -1247,14 +1308,15 @@ class LinuxBuild(BuildObject):
     library_path = os.path.join(self.build_output_path, library_name)
 
     command = [ 'ar', 'rsc', library_path, ]
-    for filename in self.pattern_files(self.build_output_path, '*.o'):
+    for filename in self.pattern_files(self.build_output_path, '*.a',
+                                       LINUX_EXCLUDE_OBJECTS):
       command.append(filename)
     self.execute(command)
 
     return library_path
 
   def link_shared_library(self):
-    library_name = 'lib{}.a'.format(self.target)
+    library_name = 'lib{}.so'.format(self.target)
     library_path = os.path.join(self.build_output_path, library_name)
 
     command = [
@@ -1277,7 +1339,8 @@ class LinuxBuild(BuildObject):
       '-Wl,-soname="{}"'.format(library_name),
     ]
 
-    for filename in self.pattern_files(self.build_output_path, '*.o'):
+    for filename in self.pattern_files(self.build_output_path, '*.a',
+                                       LINUX_EXCLUDE_OBJECTS):
       command.append(filename)
 
     self.execute(command)
@@ -1285,6 +1348,7 @@ class LinuxBuild(BuildObject):
 
   def fetch_toolchain(self):
     return True
+
 
 class WindowsBuild(BuildObject):
   """windows build"""
@@ -1419,7 +1483,7 @@ class WindowsBuild(BuildObject):
     gn_args = GN_ARGS_WINDOWS.format(is_component)
     self.generate_ninja_script(gn_args=gn_args)
     self.build_target()
-    self.package_target()
+    return [self.package_target()]
 
 
 def main(args):
@@ -1440,9 +1504,14 @@ def main(args):
   build.synchronize_buildspace()
 
   if options.action == BUILD:
-    build.build()
-    return 0
+    if os.path.exists(build.output_path):
+      shutil.rmtree(build.output_path)
+    os.makedirs(build.output_path)
 
+    output_files = build.build()
+    for output_file_path in output_files:
+      shutil.copy(output_file_path, build.output_path)
+    return 0
   return 1
 
 

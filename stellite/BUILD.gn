@@ -137,6 +137,13 @@ component("stellite_http_client") {
     "//url",
     "//base/third_party/dynamic_annotations",
   ]
+
+  if (is_android) {
+    deps += [
+      "//base:base_java",
+      "//net/android:net_java",
+    ]
+  }
 }
 
 executable("stellite_http_client_bin") {

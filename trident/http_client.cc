@@ -1,8 +1,19 @@
 //
-// 2016 write by snibug@linecorp.com
+// Copyright 2016 LINE Corporation
 //
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include "http_client.h"
+#include "trident/include/http_client.h"
 
 #include <string>
 #include <memory>
@@ -32,7 +43,7 @@ const char kMethodPut[] = "PUT";
 
 const int kDefaultRequestTimeout = 60 * 1000; // 60 seconds
 
-class TRIDENT_STELLITE_EXPORT HttpResponseDelegate
+class TRIDENT_EXPORT HttpResponseDelegate
     : public stellite::HttpResponseDelegate {
  public:
   HttpResponseDelegate(HttpClientVisitor* visitor)
@@ -70,7 +81,7 @@ class TRIDENT_STELLITE_EXPORT HttpResponseDelegate
   HttpClientVisitor* visitor_;
 };
 
-class TRIDENT_STELLITE_EXPORT HttpClient::HttpClientImpl {
+class TRIDENT_EXPORT HttpClient::HttpClientImpl {
  public:
   HttpClientImpl(HttpClient::Params& params, HttpClientVisitor* visitor)
       : visitor_(visitor),
