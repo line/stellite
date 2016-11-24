@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
   std::unique_ptr<net::QuicThreadServer> quic_thread_server(
       new net::QuicThreadServer(quic_config,
                                 server_config,
-                                net::QuicSupportedVersions()));
+                                net::AllSupportedVersions()));
 
   quic_thread_server->Initialize();
 
@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
                                             server_config.quic_port()),
                             serialized_config);
 
-  message_loop.Run();
+  base::RunLoop().Run();
 
   return 0;
 }

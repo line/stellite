@@ -48,6 +48,7 @@ executable("stellite_quic_server") {
     "logging/logging_service.h",
     "process/daemon.cc",
     "process/daemon.h",
+    "quic_thread_server_main.cc",
     "server/parse_util.cc",
     "server/parse_util.h",
     "server/proxy_stream.cc",
