@@ -21,6 +21,7 @@ CLEAN = 'clean'
 CLIENT_BINDER = 'client_binder'
 CONFIGURE = 'configure'
 DARWIN = 'darwin'
+EXECUTABLE = 'executable'
 IOS = 'ios'
 LINUX = 'linux'
 MAC = 'mac'
@@ -301,7 +302,7 @@ def option_parser(args):
                       default=TRIDENT_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
-                      choices=[STATIC_LIBRARY, SHARED_LIBRARY],
+                      choices=[STATIC_LIBRARY, SHARED_LIBRARY, EXECUTABLE],
                       default=STATIC_LIBRARY)
 
   parser.add_argument('-v', '--verbose', action='store_true')
@@ -356,6 +357,13 @@ class BuildObject(object):
     self._target_type = target_type
     self._target_platform = target_platform
     self._verbose = verbose
+
+    if self.target == STELLITE_QUIC_SERVER:
+      if self.target_type != EXECUTABLE:
+        raise Exception('stellite server is not support library target-type')
+    else:
+      if self.target_type == EXECUTABLE:
+        raise Exception('library target cannot support executalbe target-type')
 
     self.fetch_depot_tools()
 
