@@ -1518,33 +1518,31 @@ class WindowsBuild(BuildObject):
     copy_tree(self.stellite_path, stellite_buildspace_path)
 
     trident_buildspace_path  = os.path.join(self.buildspace_src_path,
-                                            'trident_stellite')
+                                            'trident')
     if os.path.exists(trident_buildspace_path):
       shutil.rmtree(trident_buildspace_path)
     copy_tree(self.trident_path, trident_buildspace_path)
 
   def package_target(self):
+    output_files = []
     if self.target_type == STATIC_LIBRARY:
-      self.copy_output_files('*.lib')
+      output_files.extend(self.pattern_files(self.build_output_path, '*.lib'))
     if self.target_type == SHARED_LIBRARY:
-      self.copy_output_files('*.dll')
-    raise Exception('invalid target type error')
+      output_files.extend(self.pattern_files(self.build_output_path, '*.dll'))
 
-  def copy_output_files(self, pattern):
-    if os.path.exists(self.output_path):
-      shutil.rmtree(self.output_path)
-    os.makedirs(self.output_path)
+    if self.target == STELLITE_HTTP_CLIENT:
+      output_files.extend(self.stellite_http_client_header_files)
+    if self.target == TRIDENT_HTTP_CLIENT:
+      output_files.extend(self.trident_http_client_header_files)
 
-    for filename in self.pattern_files(self.build_output_path, pattern):
-      shutil.copy(os.path.join(self.build_output_path, filename),
-                  self.output_path)
+    return output_files
 
   def build(self):
     is_component = 'false' if self.target_type == STATIC_LIBRARY else 'true'
     gn_args = GN_ARGS_WINDOWS.format(is_component)
     self.generate_ninja_script(gn_args=gn_args)
     self.build_target()
-    return [self.package_target()]
+    return self.package_target()
 
 
 def main(args):
