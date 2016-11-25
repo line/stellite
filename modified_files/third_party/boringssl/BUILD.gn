@@ -83,7 +83,7 @@ if (is_win && !is_msan) {
       }
     }
 
-    if (is_android || is_ios) {
+    if (is_android) {
       public_configs = [ ":no_asm_config" ]
     } else if (current_cpu == "x64") {
       if (is_mac) {

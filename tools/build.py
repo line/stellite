@@ -112,7 +112,7 @@ target_os = "android"
 GN_ARGS_WINDOWS = """
 is_component_build = {}
 is_debug = false
-symbol_level = 0
+symbol_level = 1
 target_cpu = "x64"
 target_os = "win"
 """
@@ -250,15 +250,45 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
 ]
 
 MAC_EXCLUDE_OBJECTS = [
-#  'libprotobuf_full_do_not_use.a',
-#  'libprotoc_lib.a',
-  'libprotobuf_full.a',
+  'protobuf/protobuf_full/zero_copy_stream_impl_lite.o',
+  'protobuf/protobuf_full/zero_copy_stream.o',
+  'protobuf/protobuf_full/wire_format_lite.o',
+  'protobuf/protobuf_full/strutil.o',
+  'protobuf/protobuf_full/structurally_valid.o',
+  'protobuf/protobuf_full/stringpiece.o',
+  'protobuf/protobuf_full/repeated_field.o',
+  'protobuf/protobuf_full/once.o',
+  'protobuf/protobuf_full/stringprintf.o',
+  'protobuf/protobuf_full/message_lite.o',
+  'protobuf/protobuf_full/generated_message_util.o',
+  'protobuf/protobuf_full/extension_set.o',
+  'protobuf/protobuf_full/arena.o',
+  'protobuf/protobuf_full/common.o',
+  'protobuf/protobuf_full/coded_stream.o',
+  'protobuf/protobuf_full/arenastring.o',
 ]
 
 IOS_EXCLUDE_OBJECTS = [
+  'protobuf/protobuf_full/zero_copy_stream_impl_lite.o',
+  'protobuf/protobuf_full/zero_copy_stream.o',
+  'protobuf/protobuf_full/wire_format_lite.o',
+  'protobuf/protobuf_full/strutil.o',
+  'protobuf/protobuf_full/structurally_valid.o',
+  'protobuf/protobuf_full/stringpiece.o',
+  'protobuf/protobuf_full/repeated_field.o',
+  'protobuf/protobuf_full/once.o',
+  'protobuf/protobuf_full/stringprintf.o',
+  'protobuf/protobuf_full/message_lite.o',
+  'protobuf/protobuf_full/generated_message_util.o',
+  'protobuf/protobuf_full/extension_set.o',
+  'protobuf/protobuf_full/arena.o',
+  'protobuf/protobuf_full/common.o',
+  'protobuf/protobuf_full/coded_stream.o',
+  'protobuf/protobuf_full/arenastring.o',
+
 #  'libprotobuf_full_do_not_use.a',
 #  'libprotoc_lib.a',
-  'libprotobuf_full.a',
+#  'libprotobuf_full.a',
 ]
 
 ANDROID_EXCLUDE_OBJECTS = [
@@ -305,28 +335,63 @@ def option_parser(args):
                       choices=[STATIC_LIBRARY, SHARED_LIBRARY, EXECUTABLE],
                       default=STATIC_LIBRARY)
 
-  parser.add_argument('-v', '--verbose', action='store_true')
+  parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
 
   parser.add_argument('action', choices=[CLEAN, BUILD], default=BUILD)
 
-  return parser.parse_args(args)
+  options = parser.parse_args(args)
+
+  if not options.target in (STELLITE_HTTP_CLIENT, TRIDENT_HTTP_CLIENT):
+    if not options.target_type == EXECUTABLE:
+      print('invalid target type error: {}'.format(options.target_type))
+      sys.exit(1)
+  else:
+    if options.target_type == EXECUTABLE:
+      print('invalid target type error: {}'.format(options.target_type))
+      sys.exit(1)
+
+  if options.target_platform in (ANDROID, IOS):
+    if options.target == STELLITE_QUIC_SERVER:
+      print('invalid target platform to build a stellite_quic_server')
+      sys.exit(1)
+
+  host_platform = detect_host_platform()
+  if options.target_platform in (IOS, MAC) and not host_platform == MAC:
+    print('target must built on darwin/mac')
+    sys.exit(1)
+
+  if options.target_platform == LINUX and host_platform != LINUX:
+    print('target must built on linux')
+    sys.exit(1)
+
+  host_uname = platform.uname()[3].lower()
+  if options.target_platform == ANDROID and not UBUNTU in host_uname:
+    print('android build must built on ubuntu/linux')
+    sys.exit(1)
+
+  return options
 
 
 def build_object(options):
   if options.target_platform == ANDROID:
-    return AndroidBuild(options.target, options.target_type)
+    return AndroidBuild(options.target, options.target_type,
+                        verbose=options.verbose)
 
   if options.target_platform == MAC:
-    return MacBuild(options.target, options.target_type)
+    return MacBuild(options.target, options.target_type,
+                    verbose=options.verbose)
 
   if options.target_platform == IOS:
-    return IOSBuild(options.target, options.target_type)
+    return IOSBuild(options.target, options.target_type,
+                    verbose=options.verbose)
 
   if options.target_platform == LINUX:
-    return LinuxBuild(options.target, options.target_type)
+    return LinuxBuild(options.target, options.target_type,
+                      verbose=options.verbose)
 
   if options.target_platform == WINDOWS:
-    return WindowsBuild(options.target, options.target_type)
+    return WindowsBuild(options.target, options.target_type,
+                        verbose=options.verbose)
 
   raise Exception('unsupported target_platform: {}'.format(options.target_type))
 
@@ -357,13 +422,6 @@ class BuildObject(object):
     self._target_type = target_type
     self._target_platform = target_platform
     self._verbose = verbose
-
-    if self.target == STELLITE_QUIC_SERVER:
-      if self.target_type != EXECUTABLE:
-        raise Exception('stellite server is not support library target-type')
-    else:
-      if self.target_type == EXECUTABLE:
-        raise Exception('library target cannot support executalbe target-type')
 
     self.fetch_depot_tools()
 
@@ -582,19 +640,6 @@ class BuildObject(object):
 
   def check_target_platform(self):
     """check host-platform to build a targe or not"""
-    host_platform = detect_host_platform()
-    if self.target_platform in (IOS, MAC):
-      if not host_platform == MAC:
-        return False
-
-    if self.target_platform == LINUX:
-      if host_platform != LINUX:
-        return False
-
-    if self.target_platform == ANDROID:
-      if not UBUNTU in platform.uname()[3].lower():
-        return False
-
     return True
 
   def check_chromium_repository(self):
@@ -732,7 +777,7 @@ class BuildObject(object):
       for matched in fnmatch.filter(file_list, pattern):
         is_exclude = False
         for exclude_filename in exclude_patterns:
-          if matched in exclude_filename:
+          if exclude_filename in os.path.join(path, matched):
             is_exclude = True
             break
         if is_exclude:
@@ -1026,7 +1071,8 @@ class AndroidBuild(BuildObject):
       gn_context = GN_ARGS_ANDROID.format(self.clang_arch(arch))
       gn_context += '\n' + self.appendix_gn_args(arch)
 
-      build = AndroidBuild(self.target, self.target_type, target_arch=arch)
+      build = AndroidBuild(self.target, self.target_type, target_arch=arch,
+                           verbose=self.verbose)
       build.generate_ninja_script(gn_args=gn_context)
       build.build_target()
       output_list.append(build.package_target())
@@ -1043,7 +1089,8 @@ class AndroidBuild(BuildObject):
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      build = AndroidBuild(self.target, self.target_type, target_arch=arch)
+      build = AndroidBuild(self.target, self.target_type, target_arch=arch,
+                           verbose=self.verbose)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1092,7 +1139,7 @@ class MacBuild(BuildObject):
       '-arch', 'x86_64',
     ]
 
-    for filename in self.pattern_files(self.build_output_path, '*.a',
+    for filename in self.pattern_files(self.build_output_path, '*.o',
                                        MAC_EXCLUDE_OBJECTS):
       command.append('-Wl,-force_load,{}'.format(filename))
 
@@ -1123,12 +1170,15 @@ class MacBuild(BuildObject):
       raise Exception('libtool is not exist error')
 
     command = [ libtool_path, '-static', ]
-    for filename in self.pattern_files(self.build_output_path, '*.a',
+    for filename in self.pattern_files(self.build_output_path, '*.o',
                                        MAC_EXCLUDE_OBJECTS):
       command.append(os.path.join(self.build_output_path, filename))
 
     library_path = os.path.join(self.build_output_path, library_name)
-    command.extend([ '-o', library_path ])
+    command.extend([
+      '-arch_only', 'x86_64',
+      '-o', library_path,
+    ])
     self.execute(command)
     return library_path
 
@@ -1169,7 +1219,8 @@ class IOSBuild(BuildObject):
   def build(self):
     lib_list = []
     for arch in ('x86', 'x64', 'arm', 'arm64'):
-      build = IOSBuild(self.target, self.target_type, target_arch=arch)
+      build = IOSBuild(self.target, self.target_type, target_arch=arch,
+                       verbose=self.verbose)
       build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(arch),
                                   gn_options=['--check'])
       build.build_target()
@@ -1187,7 +1238,8 @@ class IOSBuild(BuildObject):
 
   def clean(self):
     for arch in ('arm', 'arm64', 'x86', 'x64'):
-      build = IOSBuild(self.target, self.target_type, target_arch=arch)
+      build = IOSBuild(self.target, self.target_type, target_arch=arch,
+                       verbose=self.verbose)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1215,7 +1267,7 @@ class IOSBuild(BuildObject):
       '-arch', self.clang_target_arch,
       '-install_name', '@loader_path/{}'.format(library_name),
     ]
-    for filename in self.pattern_files(self.build_output_path, '*.a',
+    for filename in self.pattern_files(self.build_output_path, '*.o',
                                        IOS_EXCLUDE_OBJECTS):
       command.append('-Wl,-force_load,{}'.format(filename))
 
@@ -1248,12 +1300,13 @@ class IOSBuild(BuildObject):
       libtool_path,
       '-static',
     ]
-    for filename in self.pattern_files(self.build_output_path, '*.a',
+    for filename in self.pattern_files(self.build_output_path, '*.o',
                                        IOS_EXCLUDE_OBJECTS):
       command.append(os.path.join(self.build_output_path, filename))
 
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend([
+      '-arch_only', self.clang_target_arch,
       '-o', library_path
     ])
     self.execute(command)
