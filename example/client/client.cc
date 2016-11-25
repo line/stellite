@@ -52,8 +52,8 @@ class HttpCallback : public HttpResponseDelegate {
               << "  PROXY: " << response.was_fetched_via_proxy << std::endl
               << "  NETWORK ACCESSED: " << response.network_accessed
               << std::endl << "  SPDY: " << response.was_fetched_via_spdy
-              << std::endl << "  NPN_NEGOTIATED: "
-              << response.was_npn_negotiated << std::endl;
+              << std::endl << "  ALPN_NEGOTIATED: "
+              << response.was_alpn_negotiated << std::endl;
 
     LOG(INFO) << std::endl << "response code: " << response.response_code
               << std::endl << "mime_type: " << response.mime_type
@@ -81,6 +81,29 @@ class HttpCallback : public HttpResponseDelegate {
 };
 
 } // namespace stellite
+
+#if defined(ANDROID)
+
+#include <jni.h>
+
+jint JNI_OnLoad(JavaVM* vm, void* reserved) {
+  stellite::HttpClientContext::InitVM(vm);
+  return JNI_VERSION_1_4;
+}
+
+// for support android platform cetificate verify process are working on
+// android service layer so we need to add android java dependancies below
+// before using stellite
+//
+// import org.chromium.base.ContextUtils;
+//
+// ...
+//
+//  ContextUtils.initApplicationContext(appContext);
+//  ContextUtils.initApplicationContextForNative();
+//
+
+#endif  // defined(ANDROID)
 
 int main(int argc, char *argv[]) {
   base::CommandLine::Init(argc, argv);
