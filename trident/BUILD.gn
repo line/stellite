@@ -1,0 +1,82 @@
+#
+# Copyright 2016 LINE Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+component("trident_http_client") {
+  sources = [
+    "http_client.h",
+    "http_client.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//net",
+    "//stellite:stellite_http_client",
+    "//third_party/boringssl",
+  ]
+
+  defines = [
+    "TRIDENT_STELLITE_IMPLEMENTATION",
+    "COMPONENT_BUILD",
+  ]
+}
+
+executable("trident_http_client_bin") {
+  sources = [
+    "tridnet_client_bin.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//net",
+    "//stellite:stellite_http_client",
+    ":trident_http_client",
+  ]
+}
+
+component("trident_base") {
+  sources = [
+    "trident_base.h",
+    "trident_base.cc",
+  ]
+
+  defines = [
+    "TRIDENT_STELLITE_IMPLEMENTATION",
+    "COMPONENT_BUILD",
+  ]
+
+  deps = [
+    "//base",
+  ]
+}
+
+component("trident_base_bin") {
+  sources = [
+    "trident_base_bin.cc",
+  ]
+
+  deps = [
+    ":trident_base",
+  ]
+}
+
+executable("trident_client_binder_bin") {
+  sources = [
+    "trident_client_binder_bin.cc",
+  ]
+
+  deps = [
+    "//stellite:stellite_client_binder",
+  ]
+}
