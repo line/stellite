@@ -23,6 +23,8 @@
 #include "base/threading/thread.h"
 #include "net/base/cache_type.h"
 #include "net/cert/cert_verifier.h"
+#include "net/cert/ct_policy_enforcer.h"
+#include "net/cert/multi_log_ct_verifier.h"
 #include "net/http/http_auth_handler_factory.h"
 #include "net/http/http_server_properties_impl.h"
 #include "net/log/net_log.h"
@@ -175,30 +177,6 @@ class HttpClientContext::HttpClientContextImpl {
   void InitOnNetworkThread() {
     CHECK(base::MessageLoop::current() == network_thread_->message_loop());
 
-    // SSL config service
-    ssl_config_service_ = new net::HttpSSLConfigService();
-
-    // Initialize resolver
-    net::HostResolver::Options resolve_option;
-    host_resolver_ = net::HostResolver::CreateSystemResolver(resolve_option,
-                                                             &context_netlog_);
-
-    // Initialize certification verifier
-    cert_verifier_ = net::CertVerifier::CreateDefault();
-
-    // Initialize proxy service
-    proxy_service_ =
-        context_params_.proxy_host.size() ?
-        net::ProxyService::CreateFixed(context_params_.proxy_host) :
-        net::ProxyService::CreateDirect();
-
-    // Initialize transport security state
-    transport_security_state_.reset(new net::TransportSecurityState());
-
-    // Initialize auth handler factory
-    auth_handler_factory_ =
-        net::HttpAuthHandlerFactory::CreateDefault(host_resolver_.get());
-
     // HTTP server properties
     http_server_properties_.reset(new net::HttpServerPropertiesImpl());
 
@@ -259,12 +237,42 @@ class HttpClientContext::HttpClientContextImpl {
         base::MessageLoop::current()->task_runner()));
     params.channel_id_service = channel_id_service_.get();
 
+    // Initialize resolver
+    net::HostResolver::Options resolve_option;
+    host_resolver_ = net::HostResolver::CreateSystemResolver(resolve_option,
+                                                             &context_netlog_);
     params.host_resolver = host_resolver_.get();
+
+    // Initialize certification verifier
+    cert_verifier_ = net::CertVerifier::CreateDefault();
     params.cert_verifier = cert_verifier_.get();
+
+    // Initialize transport security state
+    transport_security_state_.reset(new net::TransportSecurityState());
     params.transport_security_state = transport_security_state_.get();
+
+    ct_verifier_.reset(new net::MultiLogCTVerifier());
+    params.cert_transparency_verifier = ct_verifier_.get();
+
+    ct_policy_enforcer_.reset(new net::CTPolicyEnforcer());
+    params.ct_policy_enforcer = ct_policy_enforcer_.get();
+
+    // Initialize proxy service
+    proxy_service_ =
+        context_params_.proxy_host.size() ?
+        net::ProxyService::CreateFixed(context_params_.proxy_host) :
+        net::ProxyService::CreateDirect();
     params.proxy_service = proxy_service_.get();
+
+    // SSL config service
+    ssl_config_service_ = new net::HttpSSLConfigService();
     params.ssl_config_service = ssl_config_service_.get();
+
+    // Initialize auth handler factory
+    auth_handler_factory_ =
+        net::HttpAuthHandlerFactory::CreateDefault(host_resolver_.get());
     params.http_auth_handler_factory = auth_handler_factory_.get();
+
     params.http_server_properties = http_server_properties_.get();
 
     // Build transaction factory
@@ -314,14 +322,16 @@ class HttpClientContext::HttpClientContextImpl {
     backend_factory_.reset();
 
     // Release something ...
-    http_server_properties_.reset();
     auth_handler_factory_.reset();
-    proxy_service_.reset();
-    transport_security_state_.reset();
     cert_verifier_.reset();
-    host_resolver_.reset();
     channel_id_service_.reset();
+    ct_policy_enforcer_.reset();
+    ct_verifier_.reset();
+    host_resolver_.reset();
+    http_server_properties_.reset();
+    proxy_service_.reset();
     ssl_config_service_ = nullptr;
+    transport_security_state_.reset();
 
     base::RunLoop().RunUntilIdle();
   }
@@ -344,12 +354,13 @@ class HttpClientContext::HttpClientContextImpl {
   typedef std::set<std::unique_ptr<HttpClientImpl>> HttpClientImplContainer;
 
   base::WaitableEvent on_init_completed_;
-  base::FilePath cache_path_;
-  net::NetLog context_netlog_;
+
   std::unique_ptr<base::Thread> network_thread_;
   std::unique_ptr<net::CertVerifier> cert_verifier_;
   std::unique_ptr<net::HostResolver> host_resolver_;
   std::unique_ptr<net::TransportSecurityState> transport_security_state_;
+  std::unique_ptr<net::CTVerifier> ct_verifier_;
+  std::unique_ptr<net::CTPolicyEnforcer> ct_policy_enforcer_;
   std::unique_ptr<net::HttpAuthHandlerFactory> auth_handler_factory_;
   std::unique_ptr<net::HttpServerPropertiesImpl> http_server_properties_;
   std::unique_ptr<net::NetworkTransactionFactory> transaction_factory_;
@@ -357,6 +368,7 @@ class HttpClientContext::HttpClientContextImpl {
   scoped_refptr<net::SSLConfigService> ssl_config_service_;
 
   // Cache
+  base::FilePath cache_path_;
   std::unique_ptr<net::BackendFactory> backend_factory_;
   std::unique_ptr<net::BackendCache> backend_cache_;
   std::unique_ptr<net::CacheBasedQuicServerInfoFactory>
@@ -367,6 +379,8 @@ class HttpClientContext::HttpClientContextImpl {
   const Params context_params_;
 
   HttpClientImplMap http_client_map_;
+
+  net::NetLog context_netlog_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpClientContextImpl);
 };
