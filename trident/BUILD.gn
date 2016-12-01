@@ -27,14 +27,17 @@ component("trident_http_client") {
   ]
 
   defines = [
-    "TRIDENT_STELLITE_IMPLEMENTATION",
-    "COMPONENT_BUILD",
+    "TRIDENT_IMPLEMENTATION",
   ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
 }
 
 executable("trident_http_client_bin") {
   sources = [
-    "tridnet_client_bin.cc",
+    "trident_http_client_bin.cc",
   ]
 
   deps = [
@@ -52,9 +55,12 @@ component("trident_base") {
   ]
 
   defines = [
-    "TRIDENT_STELLITE_IMPLEMENTATION",
-    "COMPONENT_BUILD",
+    "TRIDENT_IMPLEMENTATION",
   ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
 
   deps = [
     "//base",

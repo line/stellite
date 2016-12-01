@@ -129,8 +129,11 @@ component("stellite_http_client") {
 
   defines = [
     "STELLITE_IMPLEMENTATION",
-    "COMPONENT_BUILD",
   ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
 
   deps = [
     "//base",

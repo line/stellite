@@ -225,7 +225,6 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
   'net',
   'sdch',
   'testing',
-  'third_party/llvm-build',
   'third_party/apple_apsl',
   'third_party/binutils',
   'third_party/boringssl',
