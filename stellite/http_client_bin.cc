@@ -16,6 +16,7 @@
 #include <iostream>
 #include <memory>
 
+#include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
@@ -139,6 +140,8 @@ int main(int argc, char *argv[]) {
     }
   }
 #endif
+
+  base::AtExitManager g_exit_manager;
 
   stellite::HttpClientContext::Params params;
   params.using_spdy = true;
