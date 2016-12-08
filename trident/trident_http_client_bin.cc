@@ -17,7 +17,9 @@
 #include <memory>
 #include <iostream>
 
+#include "base/at_exit.h"
 #include "base/logging.h"
+#include "base/command_line.h"
 #include "trident/include/http_client.h"
 
 
@@ -62,6 +64,14 @@ class ResponseVisitor : public trident::HttpClientVisitor {
 };
 
 int main(int argc, char* argv[]) {
+  base::CommandLine::Init(argc, argv);
+
+  logging::LoggingSettings settings;
+  settings.logging_dest = logging::LOG_TO_SYSTEM_DEBUG_LOG;
+  CHECK(logging::InitLogging(settings));
+
+  base::AtExitManager g_exit_manager;
+
   std::unique_ptr<ResponseVisitor> visitor(new ResponseVisitor());
   trident::HttpClient::Params params;
   params.using_http2 = true;
@@ -73,7 +83,6 @@ int main(int argc, char* argv[]) {
   while (true) {
     std::string command;
     std::getline(std::cin, command);
-
     client->Request(trident::HttpClient::HTTP_GET,
                     command.c_str(), command.size(),
                     nullptr, 0,
