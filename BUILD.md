@@ -18,39 +18,32 @@ Target platform: Android, Linux
 
 ```bash
 $ ./tools/build.py --help
-usage: build.py [-h] [--chromium-path CHROMIUM_PATH] [--out OUT]
-                --target-platform {ios,android,darwin,linux} --target
-                {stellite,quic_server,client_binder}
-                [--target-type {static_library,shared_library}]
-                [--cache-dir CACHE_DIR]
-                {clean,build,clean_build,unittest,sync_chromium}
+usage: build.py [-h] [--target-platform {linux,android,ios,mac,windows}]
+                [--target {stellite_quic_server,stellite_http_client,trident_http_client,client_binder}]
+                [--target-type {static_library,shared_library,executable}]
+                [-v]
+                {clean,build}
 
 positional arguments:
-  {clean,build,clean_build,unittest,sync_chromium}
-                        build action
+  {clean,build}
 
 optional arguments:
   -h, --help            show this help message and exit
-  --chromium-path CHROMIUM_PATH
-                        specify a chromium path
-  --out OUT             build output path
-  --target-platform {ios,android,darwin,linux}
-                        ios, android, darwin, linux
-  --target {stellite,quic_server,client_binder}
-                        stellite library or quic server
-  --target-type {static_library,shared_library}
-                        library type
-  --cache-dir CACHE_DIR
+  --target-platform {linux,android,ios,mac,windows}
+                        default platform mac
+  --target {stellite_quic_server,stellite_http_client,trident_http_client,client_binder}
+  --target-type {static_library,shared_library,executable}
+  -v, --verbose         verbose
 ```
 
 ### Build example
 
 Client build:
 ```bash
-./tools/build.py --target-platform=android --target stellite build
+./tools/build.py --target-platform=android --target stellite_http_client build
 ```
 
 Server build:
 ```bash
-./tools/build.py --target-platform=linux --target quic_server build
+./tools/build.py --target-platform=linux --target stellite_quic_server build
 ```
