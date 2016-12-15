@@ -23,7 +23,6 @@
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
-#include "stellite/logging/logging.h"
 #include "stellite/server/parse_util.h"
 #include "url/gurl.h"
 

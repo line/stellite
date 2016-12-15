@@ -27,8 +27,10 @@ LINUX = 'linux'
 MAC = 'mac'
 QUIC_CLIENT = 'quic_client'
 SHARED_LIBRARY = 'shared_library'
+SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN = 'simple_chunked_upload_client_bin'
 STATIC_LIBRARY = 'static_library'
 STELLITE_HTTP_CLIENT = 'stellite_http_client'
+STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
 STELLITE_QUIC_SERVER = 'stellite_quic_server'
 TARGET = 'target'
 TRIDENT_HTTP_CLIENT = 'trident_http_client'
@@ -68,17 +70,18 @@ target_os_only = \"True\"
 """
 
 GN_ARGS_LINUX = """
-is_component_build = false
 disable_file_support = true
 disable_ftp_support = true
+is_component_build = false
 target_cpu = "x64"
 target_os = "linux"
 """
 
 GN_ARGS_MAC = """
-is_component_build = false
 disable_file_support = true
 disable_ftp_support = true
+is_component_build = false
+is_debug = true
 target_cpu = "x64"
 target_os = "mac"
 """
@@ -326,32 +329,25 @@ def option_parser(args):
                       default=host_platform)
 
   parser.add_argument('--target',
-                      choices=[STELLITE_QUIC_SERVER, STELLITE_HTTP_CLIENT,
-                               TRIDENT_HTTP_CLIENT, CLIENT_BINDER],
-                      default=TRIDENT_HTTP_CLIENT)
+                      choices=[STELLITE_QUIC_SERVER,
+                               STELLITE_HTTP_CLIENT,
+                               TRIDENT_HTTP_CLIENT,
+                               CLIENT_BINDER,
+                               STELLITE_HTTP_CLIENT_BIN,
+                               SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN],
+                      default=STELLITE_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
                       choices=[STATIC_LIBRARY, SHARED_LIBRARY, EXECUTABLE],
                       default=STATIC_LIBRARY)
 
   parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
-
   parser.add_argument('action', choices=[CLEAN, BUILD], default=BUILD)
-
   options = parser.parse_args(args)
 
-  if not options.target in (STELLITE_HTTP_CLIENT, TRIDENT_HTTP_CLIENT):
-    if not options.target_type == EXECUTABLE:
-      print('invalid target type error: {}'.format(options.target_type))
-      sys.exit(1)
-  else:
-    if options.target_type == EXECUTABLE:
-      print('invalid target type error: {}'.format(options.target_type))
-      sys.exit(1)
-
-  if options.target_platform in (ANDROID, IOS):
-    if options.target == STELLITE_QUIC_SERVER:
-      print('invalid target platform to build a stellite_quic_server')
+  if options.target in (STELLITE_HTTP_CLIENT, TRIDENT_HTTP_CLIENT):
+    if not options.target_type in (STATIC_LIBRARY, SHARED_LIBRARY):
+      print('invalid target type error')
       sys.exit(1)
 
   host_platform = detect_host_platform()
@@ -1105,7 +1101,7 @@ class MacBuild(BuildObject):
     self.generate_ninja_script(GN_ARGS_MAC)
     self.build_target()
 
-    if self.target == STELLITE_QUIC_SERVER:
+    if self.target_type == EXECUTABLE:
       return [os.path.join(self.build_output_path, self.target)]
 
     output_list = []
@@ -1341,7 +1337,7 @@ class LinuxBuild(BuildObject):
     self.generate_ninja_script(GN_ARGS_LINUX)
     self.build_target()
 
-    if self.target == STELLITE_QUIC_SERVER:
+    if self.target_type == EXECUTABLE:
       return [os.path.join(self.build_output_path, self.target)]
 
     output_list = []

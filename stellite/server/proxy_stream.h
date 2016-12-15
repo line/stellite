@@ -22,8 +22,11 @@
 #include "net/tools/quic/quic_simple_server_stream.h"
 #include "url/gurl.h"
 
-namespace net {
+namespace stellite {
 class HttpFetcher;
+}
+
+namespace net {
 class HttpResponseHeaders;
 class HttpRewrite;
 class ServerConfig;
@@ -33,19 +36,26 @@ class URLFetcher;
 // ProxyStream is responsible for receiving QUIC HTTP requests, fetching
 // backend requests, and responding with QUIC HTTP responses
 class NET_EXPORT ProxyStream : public QuicSimpleServerStream,
-                               public HttpFetcherDelegate {
+                               public stellite::HttpFetcherTask::Visitor {
  public:
   ProxyStream(const ServerConfig& server_config,
               QuicStreamId id, ServerSession* session,
-              HttpFetcher* http_fetcher,
+              stellite::HttpFetcher* http_fetcher,
               const HttpRewrite* http_rewrite);
 
   ~ProxyStream() override;
 
   // Implements HttpFetcherDelegate
   // OnFetchComplete may have success and error except timeout
-  void OnFetchComplete(const URLFetcher* source, int64_t msec) override;
-  void OnFetchTimeout(int64_t msec) override;
+  void OnTaskComplete(int request_id, const URLFetcher* source,
+                      const HttpResponseInfo* response_info) override;
+
+  void OnTaskStream(int request_id, const URLFetcher* source,
+                    const HttpResponseInfo* response_info,
+                    const char* data, size_t len, bool fin) override;
+
+  void OnTaskError(int request_id, const URLFetcher* source,
+                   int error_code) override;
 
  protected:
   void SendResponse() override;
@@ -63,7 +73,7 @@ class NET_EXPORT ProxyStream : public QuicSimpleServerStream,
  private:
   ServerSession* per_connection_session_;
 
-  HttpFetcher* http_fetcher_; // Not owned
+  stellite::HttpFetcher* http_fetcher_; // Not owned
 
   const HttpRewrite* http_rewrite_;
 

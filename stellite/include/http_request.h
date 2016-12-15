@@ -42,18 +42,35 @@ class STELLITE_EXPORT HttpRequestHeader {
   std::string ToString() const;
 
  private:
-  class HttpRequestHeaderImpl;
-  std::unique_ptr<HttpRequestHeaderImpl> impl_;
+  class HeaderImpl;
+  std::unique_ptr<HeaderImpl> header_impl_;
 };
 
 // HttpRequest consisting of request URL, method, payload, HTTP headers
 struct STELLITE_EXPORT HttpRequest {
+  enum RequestType : int {
+    GET,
+    POST,
+    HEAD,
+    DELETE_REQUEST,   // DELETE is already taken on Windows.
+    PUT,
+    PATCH,
+  };
+
   explicit HttpRequest();
+  HttpRequest(const HttpRequest& other);
   ~HttpRequest();
 
   std::string url;
-  std::string method;
   std::stringstream upload_stream;
+
+  RequestType request_type;
+
+  bool is_chunked_upload;
+  bool is_stop_on_redirect;
+  bool is_stream_response;
+  int max_retries_on_5xx;
+  int max_retries_on_network_change;
 
   HttpRequestHeader headers;
 };

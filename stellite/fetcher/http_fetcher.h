@@ -22,44 +22,59 @@
 #include "net/spdy/spdy_header_block.h"
 #include "net/spdy/spdy_protocol.h"
 #include "net/url_request/url_fetcher.h"
+#include "stellite/fetcher/http_fetcher_task.h"
+#include "stellite/include/http_request.h"
+#include "stellite/include/stellite_export.h"
 
 namespace base {
 class SingleThreadTaskRunner;
 }
 
-namespace net {
-class HttpFetcherTask;
+namespace stellite {
+class HttpFetcherDelegate;
 class HttpRequestContextGetter;
 
-class HttpFetcherDelegate {
+class STELLITE_EXPORT HttpFetcher {
  public:
-  virtual ~HttpFetcherDelegate() {}
-  virtual void OnFetchComplete(const URLFetcher* source, int64_t msec) = 0;
-  virtual void OnFetchTimeout(int64_t msec) = 0;
-};
-
-class HttpFetcher {
- public:
-  HttpFetcher(HttpRequestContextGetter* http_request_context_getter);
+  HttpFetcher(scoped_refptr<HttpRequestContextGetter> context_getter);
   ~HttpFetcher();
 
-  void Fetch(const GURL& url,
-             const URLFetcher::RequestType type,
-             const HttpRequestHeaders& headers,
-             const std::string& body,
-             const int64_t timeout,
-             base::WeakPtr<HttpFetcherDelegate> delegate);
+  int Request(const HttpRequest& request, int64_t timeout,
+              base::WeakPtr<HttpFetcherTask::Visitor> delegate);
 
-  void OnTaskComplete(const HttpFetcherTask* task);
+  bool AppendChunkToUpload(int request_id, const std::string& data,
+                           bool is_last_chunk);
+
+  void CancelAll();
+  void Cancel(int request_id);
+
+  // release task when it was done
+  void OnTaskComplete(int request_id);
 
   HttpRequestContextGetter* context_getter();
 
  private:
-  typedef std::map<const HttpFetcherTask*,
-                   std::unique_ptr<HttpFetcherTask>> TaskMap;
+  typedef std::map<int, std::unique_ptr<HttpFetcherTask>> TaskMap;
 
-  TaskMap task_cache_; // task container
-  HttpRequestContextGetter* http_request_context_getter_; /* not owned */
+  HttpFetcherTask* FindTask(int request_id);
+
+  void StartRequest(int request_id, const HttpRequest& http_request,
+                    int64_t timeout,
+                    base::WeakPtr<HttpFetcherTask::Visitor> delegate);
+
+  void StartAppendChunkToUpload(int request_id,
+                                const std::string& data,
+                                bool is_last_chunk);
+
+  TaskMap task_map_; // task container
+
+  scoped_refptr<HttpRequestContextGetter> http_request_context_getter_;
+
+  int last_request_id_;
+
+  scoped_refptr<base::SingleThreadTaskRunner> network_task_runner_;
+
+  base::WeakPtrFactory<HttpFetcher> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpFetcher);
 };

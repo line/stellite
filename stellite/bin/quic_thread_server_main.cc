@@ -18,14 +18,13 @@
 
 #include "base/at_exit.h"
 #include "base/command_line.h"
+#include "base/logging.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
 #include "net/quic/core/crypto/crypto_server_config_protobuf.h"
 #include "net/quic/core/quic_protocol.h"
-#include "stellite/logging/logging.h"
-#include "stellite/logging/logging_service.h"
 #include "stellite/process/daemon.h"
 #include "stellite/server/quic_thread_server.h"
 
@@ -90,11 +89,9 @@ int main(int argc, char* argv[]) {
   }
 
   if (server_config.logging()) {
-    stellite::LoggingService* logging_service =
-        stellite::LoggingService::GetInstance();
-    if (!logging_service->Initialize(log_dir)) {
-      exit(1);
-    }
+    logging::LoggingSettings logging_settings;
+    logging_settings.logging_dest = logging::LOG_TO_SYSTEM_DEBUG_LOG;
+    logging::InitLogging(logging_settings);
   }
 
   net::QuicConfig quic_config;
@@ -105,7 +102,7 @@ int main(int argc, char* argv[]) {
 
   quic_thread_server->Initialize();
 
-  FLOG(INFO) << "quic server(" << server_config.quic_port() << ") start";
+  LOG(INFO) << "quic server(" << server_config.quic_port() << ") start";
 
   std::vector<net::QuicServerConfigProtobuf*> serialized_config;
   quic_thread_server->Start(server_config.worker_count(),

@@ -21,7 +21,6 @@
 #include "net/base/net_errors.h"
 #include "net/log/net_log.h"
 #include "net/socket/tcp_server_socket.h"
-#include "stellite/logging/logging.h"
 
 namespace {
 
@@ -71,7 +70,7 @@ bool HttpStatsServer::Start(uint16_t port) {
 
   IPEndPoint address;
   if (http_server_->GetLocalAddress(&address) != OK) {
-    FLOG(ERROR) << "Cannot start HTTP server.";
+    LOG(ERROR) << "Cannot start HTTP server.";
     return false;
   }
 
@@ -105,7 +104,7 @@ void HttpStatsServer::OnHttpRequest(int connection_id,
  GURL url("http://host" + info.path);
 
   if (!ValidateRequestMethod(connection_id, url.path(), info.method)) {
-    FLOG(ERROR) << "Unknown path request: " << url.path();
+    LOG(ERROR) << "Unknown path request: " << url.path();
     return;
   }
 

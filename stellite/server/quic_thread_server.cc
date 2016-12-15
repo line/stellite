@@ -21,7 +21,6 @@
 #include "net/tools/quic/quic_dispatcher.h"
 #include "stellite/crypto/quic_ephemeral_key_source.h"
 #include "stellite/fetcher/http_rewrite.h"
-#include "stellite/logging/logging.h"
 #include "stellite/server/thread_dispatcher.h"
 #include "stellite/server/thread_worker.h"
 
@@ -48,7 +47,7 @@ bool QuicThreadServer::Start(size_t worker_size,
     if (!proof_source->Initialize(server_config_.certfile(),
                                   server_config_.keyfile(),
                                   base::FilePath())) {
-      FLOG(ERROR) << "Failed to parse the certificate";
+      LOG(ERROR) << "Failed to parse the certificate";
       return false;
     }
 
@@ -65,7 +64,7 @@ bool QuicThreadServer::Start(size_t worker_size,
     worker->SetEphemeralKeySource(new QuicEphemeralKeySource());
 
     if (!worker->Initialize(serialized_config)) {
-      FLOG(ERROR) << "failed to parse quic server config";
+      LOG(ERROR) << "failed to parse quic server config";
       return false;
     }
 

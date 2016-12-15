@@ -21,87 +21,132 @@
 #include "stellite/fetcher/http_fetcher.h"
 #include "stellite/fetcher/http_fetcher_impl.h"
 #include "stellite/fetcher/http_request_context_getter.h"
-#include "stellite/logging/logging.h"
 
-namespace net {
+namespace stellite {
 
 const char kDefaultContentType[] = "application/x-www-form-urlencoded";
 
-HttpFetcherTask::HttpFetcherTask(HttpFetcher* http_fetcher,
-                                 base::WeakPtr<HttpFetcherDelegate> delegate,
-                                 int64_t timeout_msec)
+HttpFetcherTask::HttpFetcherTask(HttpFetcher* http_fetcher, int request_id,
+                                 base::WeakPtr<Visitor> delegate)
     : http_fetcher_(http_fetcher),
-      delegate_(delegate),
-      timeout_(base::TimeDelta::FromMilliseconds(timeout_msec)) {
+      request_id_(request_id),
+      visitor_(delegate) {
 }
 
 HttpFetcherTask::~HttpFetcherTask() {}
 
-void HttpFetcherTask::Start(const GURL& url,
-                            const URLFetcher::RequestType type,
-                            const HttpRequestHeaders& headers,
-                            const std::string& body) {
-  // Set URL fetcher
-  http_fetcher_impl_.reset(new HttpFetcherImpl(url, type, this));
-  http_fetcher_impl_->SetRequestContext(http_fetcher_->context_getter());
+void HttpFetcherTask::Start(const HttpRequest& request,
+                            int64_t timeout_msec) {
+  GURL url(request.url);
 
-  // Set body
-  if (body.size()) {
+  net::URLFetcher::RequestType request_type = net::URLFetcher::GET;
+  if (request.request_type == HttpRequest::POST) {
+    request_type = net::URLFetcher::POST;
+  } else if (request.request_type == HttpRequest::HEAD) {
+    request_type = net::URLFetcher::HEAD;
+  } else if (request.request_type == HttpRequest::DELETE_REQUEST) {
+    request_type = net::URLFetcher::DELETE_REQUEST;
+  } else if (request.request_type == HttpRequest::PUT) {
+    request_type = net::URLFetcher::PUT;
+  } else if (request.request_type == HttpRequest::PATCH) {
+    request_type = net::URLFetcher::PATCH;
+  }
+
+  // Set URL fetcher
+  url_fetcher_.reset(
+      new HttpFetcherImpl(url, request_type, this,
+                          request.is_stream_response));
+
+  net::HttpRequestHeaders headers;
+  headers.AddHeadersFromString(request.headers.ToString());
+
+  // set net::URLRequestContextGetter
+  url_fetcher_->SetRequestContext(http_fetcher_->context_getter());
+
+  // set payload
+  std::string payload(request.upload_stream.str());
+  DCHECK(!(payload.size() && request.is_chunked_upload));
+
+  if (request.is_chunked_upload || payload.size()) {
     std::string content_type;
-    if (!headers.GetHeader(HttpRequestHeaders::kContentType, &content_type)) {
+    if (!headers.GetHeader(net::HttpRequestHeaders::kContentType,
+                           &content_type)) {
       content_type = kDefaultContentType;
     }
 
-    http_fetcher_impl_->SetUploadData(content_type, body);
+    if (request.is_chunked_upload) {
+      url_fetcher_->SetChunkedUpload(content_type);
+    } else {
+      url_fetcher_->SetUploadData(content_type, payload);
+    }
   }
 
   // Set extra headers
-  http_fetcher_impl_->SetExtraRequestHeaders(headers.ToString());
+  url_fetcher_->SetExtraRequestHeaders(headers.ToString());
 
   // Set URL request context getter
-  http_fetcher_impl_->SetStopOnRedirect(true);
-  http_fetcher_impl_->Start();
+  url_fetcher_->SetStopOnRedirect(request.is_stop_on_redirect);
+  url_fetcher_->Start();
 
-  fetch_start_ = base::Time::Now();
-
-  // Set timer
-  url_fetch_timeout_timer_.reset(new base::OneShotTimer());
-  url_fetch_timeout_timer_->Start(
-      FROM_HERE,
-      timeout_,
-      this,
-      &HttpFetcherTask::OnURLFetchTimeout);
+  if (timeout_msec > 0) {
+    // Set timer
+    url_fetch_timeout_timer_.reset(new base::OneShotTimer());
+    url_fetch_timeout_timer_->Start(
+        FROM_HERE,
+        base::TimeDelta::FromMilliseconds(timeout_msec),
+        this,
+        &HttpFetcherTask::OnFetchTimeout);
+  }
 }
 
-void HttpFetcherTask::OnURLFetchComplete(const URLFetcher* source) {
-  if (delegate_.get() == nullptr) {
-    FLOG(ERROR) << "Fetch is complete but fetcher delegate has expired";
-    return;
-  }
-
-  DCHECK(url_fetch_timeout_timer_.get());
-  url_fetch_timeout_timer_->Stop();
-
-  const URLRequestStatus& status = source->GetStatus();
-  if (status.status() == URLRequestStatus::Status::FAILED) {
-    FLOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
-               << source->GetURL();
-    FLOG(ERROR) << source->GetResponseCode();
-  }
-
-  base::TimeDelta duration = fetch_start_ - base::Time::Now();
-  delegate_->OnFetchComplete(source, duration.InMillisecondsRoundedUp());
-  http_fetcher_->OnTaskComplete(this);
+void HttpFetcherTask::Stop() {
+  DCHECK(url_fetcher_.get());
+  url_fetcher_->Stop();
 }
 
-void HttpFetcherTask::OnURLFetchTimeout() {
-  if (delegate_.get() == nullptr) {
-    return;
+void HttpFetcherTask::OnFetchComplete(
+    const net::URLFetcher* source,
+    const net::HttpResponseInfo* response_info) {
+
+  if (url_fetch_timeout_timer_.get()) {
+    url_fetch_timeout_timer_->Stop();
   }
 
-  base::TimeDelta duration = fetch_start_ - base::Time::Now();
-  delegate_->OnFetchTimeout(duration.InMillisecondsRoundedUp());
-  http_fetcher_->OnTaskComplete(this);
+  const net::URLRequestStatus& status = source->GetStatus();
+  if (status.status() == net::URLRequestStatus::Status::FAILED) {
+    LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
+        << source->GetURL();
+    LOG(ERROR) << source->GetResponseCode();
+  }
+
+  if (visitor_.get()) {
+    visitor_->OnTaskComplete(request_id_, source, response_info);
+  }
+
+  http_fetcher_->OnTaskComplete(request_id_);
+}
+
+void HttpFetcherTask::OnFetchStream(
+    const net::URLFetcher* source,
+    const net::HttpResponseInfo* response_info,
+    const char* data, size_t len, bool fin) {
+
+  if (visitor_.get()) {
+    visitor_->OnTaskStream(request_id_, source, response_info,
+                           data, len, fin);
+  }
+
+  if (fin) {
+    http_fetcher_->OnTaskComplete(request_id_);
+  }
+}
+
+void HttpFetcherTask::OnFetchTimeout() {
+  if (visitor_.get()) {
+    visitor_->OnTaskError(request_id_, url_fetcher(), net::ERR_TIMED_OUT);
+  }
+
+  http_fetcher_->OnTaskComplete(request_id_);
 }
 
 } // namespace net

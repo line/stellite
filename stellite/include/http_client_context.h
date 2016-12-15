@@ -16,6 +16,7 @@
 #define QUIC_INCLUDE_HTTP_CLIENT_CONTEXT_H_
 
 #include <string>
+#include <vector>
 
 #if defined(ANDROID)
 #include <jni.h>
@@ -39,16 +40,15 @@ class STELLITE_EXPORT HttpClientContext {
     ~Params();
 
     bool using_quic;
-    bool using_spdy;
     bool using_http2;
-    bool using_quic_disk_cache;
+    bool using_disk_cache;
 
     bool ignore_certificate_errors;
     bool enable_http2_alternative_service_with_different_host;
     bool enable_quic_alternative_service_with_different_host;
 
     std::string proxy_host;
-    std::string origin_to_force_quic_on;
+    std::vector<std::string> quic_host_whitelist;
   };
 
   explicit HttpClientContext(const Params& params);
@@ -56,7 +56,8 @@ class STELLITE_EXPORT HttpClientContext {
 
   bool Initialize();
   bool TearDown();
-  bool Cancel();
+
+  void CancelAll();
 
   // the factory function but HttpClient object ownership was on
   // HttpClientContext. so do release client with ReleaseHttpClient function
@@ -64,9 +65,7 @@ class STELLITE_EXPORT HttpClientContext {
   HttpClient* CreateHttpClient(HttpResponseDelegate* visitor);
   void ReleaseHttpClient(HttpClient* client);
 
-#if defined(USE_OPENSSL_CERTS)
   static bool ResetCertBundle(const std::string& pem_path);
-#endif
 
 #if defined(ANDROID)
   // In Android JNI applications, InitVM function must call
@@ -75,8 +74,8 @@ class STELLITE_EXPORT HttpClientContext {
 #endif
 
  private:
-  class HttpClientContextImpl;
-  HttpClientContextImpl* impl_;
+  class ContextImpl;
+  ContextImpl* context_impl_;
 
   // DISALLOW_COPY_AND_ASSIGN
   HttpClientContext(const HttpClientContext&);

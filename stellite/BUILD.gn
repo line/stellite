@@ -12,8 +12,12 @@ import("//build/config/crypto.gni")
 import("//build/config/features.gni")
 import("//build/config/ui.gni")
 
-executable("stellite_quic_server") {
+component("stellite_base") {
   sources = [
+    "client/http_request.cc",
+    "client/http_response.cc",
+    "client/http_ssl_config_service.cc",
+    "client/http_ssl_config_service.h",
     "crypto/quic_ephemeral_key_source.cc",
     "crypto/quic_ephemeral_key_source.h",
     "fetcher/http_fetcher.cc",
@@ -30,25 +34,44 @@ executable("stellite_quic_server") {
     "fetcher/http_rewrite.h",
     "fetcher/spdy_utils.cc",
     "fetcher/spdy_utils.h",
-    "logging/file_switch.cc",
-    "logging/file_switch.h",
-    "logging/file_switch_per_date.cc",
-    "logging/file_switch_per_date.h",
-    "logging/log_file.h",
-    "logging/log_file_factory.h",
-    "logging/log_file_factory_default.cc",
-    "logging/log_file_factory_default.h",
-    "logging/log_file_posix.cc",
-    "logging/log_file_posix.h",
-    "logging/log_file_writer.cc",
-    "logging/log_file_writer.h",
-    "logging/logging.cc",
-    "logging/logging.h",
-    "logging/logging_service.cc",
-    "logging/logging_service.h",
+    "include/http_request.h",
+    "include/http_response.h",
     "process/daemon.cc",
     "process/daemon.h",
-    "quic_thread_server_main.cc",
+    "socket/quic_udp_server_socket.cc",
+    "socket/quic_udp_server_socket.h",
+    "socket/quic_udp_socket.h",
+    "socket/quic_udp_socket_posix.cc",
+    "socket/quic_udp_socket_posix.h",
+    "stats/server_stats.cc",
+    "stats/server_stats.h",
+    "stats/server_stats_macro.h",
+    "stats/server_stats_recorder.cc",
+    "stats/server_stats_recorder.h",
+  ]
+
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+  ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
+
+  deps = [
+    "//third_party/protobuf:protobuf_lite",
+    "//base",
+    "//net",
+    "//components/url_matcher",
+    "//net:simple_quic_tools",
+    "//build/config/sanitizers:deps",
+    "//third_party/boringssl",
+    "//third_party/re2",
+  ]
+}
+
+component("stellite_quic_server_base") {
+  sources = [
     "server/parse_util.cc",
     "server/parse_util.h",
     "server/proxy_stream.cc",
@@ -69,73 +92,41 @@ executable("stellite_quic_server") {
     "server/thread_dispatcher.h",
     "server/thread_worker.cc",
     "server/thread_worker.h",
-    "socket/quic_udp_server_socket.cc",
-    "socket/quic_udp_server_socket.h",
-    "socket/quic_udp_socket.h",
-    "socket/quic_udp_socket_posix.cc",
-    "socket/quic_udp_socket_posix.h",
-    "stats/server_stats.cc",
-    "stats/server_stats.h",
-    "stats/server_stats_macro.h",
-    "stats/server_stats_recorder.cc",
-    "stats/server_stats_recorder.h",
   ]
 
   deps = [
-    "//components/url_matcher",
+    ":stellite_base",
     "//base",
     "//net",
-    "//net:simple_quic_tools",
-    "//build/config/sanitizers:deps",
-    "//third_party/boringssl",
-    "//third_party/protobuf:protobuf_lite",
-    "//third_party/re2",
+  ]
+}
+
+executable("stellite_quic_server") {
+  sources = [
+    "bin/quic_thread_server_main.cc",
+  ]
+
+  deps = [
+    ":stellite_base",
+    "//base",
+    "//net",
   ]
 }
 
 component("stellite_http_client") {
   sources = [
-    "client/backend_cache.cc",
-    "client/backend_cache.h",
-    "client/backend_factory.cc",
-    "client/backend_factory.h",
-    "client/cache_based_quic_server_info.cc",
-    "client/cache_based_quic_server_info.h",
-    "client/cache_based_quic_server_info_factory.cc",
-    "client/cache_based_quic_server_info_factory.h",
-    "client/contents_filter_context.cc",
-    "client/contents_filter_context.h",
-    "client/network_transaction_client.cc",
-    "client/network_transaction_client.h",
-    "client/network_transaction_consumer.cc",
-    "client/network_transaction_consumer.h",
-    "client/network_transaction_factory.cc",
-    "client/network_transaction_factory.h",
-    "client/http_ssl_config_service.cc",
-    "client/http_ssl_config_service.h",
+    "client/http_client_context.cc",
     "client/http_client_impl.cc",
     "client/http_client_impl.h",
-    "client/http_client_context.cc",
-    "client/http_request.cc",
-    "client/http_response.cc",
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
-    "include/http_request.h",
-    "include/http_response.h",
     "include/logging.h",
     "include/stellite_export.h",
   ]
 
-  defines = [
-    "STELLITE_IMPLEMENTATION",
-  ]
-
-  if (!is_win) {
-    defines += [ "COMPONENT_BUILD" ]
-  }
-
   deps = [
+    ":stellite_base",
     "//base",
     "//net",
     "//url",
@@ -152,7 +143,24 @@ component("stellite_http_client") {
 
 executable("stellite_http_client_bin") {
   sources = [
-    "http_client_bin.cc",
+    "bin/stellite_http_client_bin.cc",
+  ]
+
+  deps = [
+    ":stellite_http_client",
+    "//base",
+    "//net",
+    "//url",
+    "//build/win:default_exe_manifest",
+    "//build/config/sanitizers:deps",
+    "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
+  ]
+}
+
+executable("simple_chunked_upload_client_bin") {
+  sources = [
+    "bin/simple_chunked_upload_bin.cc",
   ]
 
   deps = [

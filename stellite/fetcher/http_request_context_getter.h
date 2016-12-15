@@ -18,6 +18,7 @@
 #include "base/compiler_specific.h"
 #include "base/memory/ref_counted.h"
 #include "net/url_request/url_request_context_getter.h"
+#include "net/url_request/url_request_context_builder.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -25,11 +26,39 @@ class SingleThreadTaskRunner;
 
 namespace net {
 class URLRequestContext;
+}
+
+namespace stellite {
 
 class HttpRequestContextGetter : public net::URLRequestContextGetter {
  public:
+  struct Params {
+    Params();
+    Params(const Params& other);
+    ~Params();
+
+    bool enable_http2;
+    bool enable_quic;
+    bool ignore_certificate_errors;
+    bool quic_close_sessions_on_ip_change;
+    bool quic_delay_tcp_race;
+    bool quic_disable_bidirectional_streams;
+    bool quic_migrate_sessions_early;
+    bool quic_migrate_sessions_on_network_change;
+    bool quic_prefer_aes;
+    bool quic_race_cert_verification;
+    bool sdch_enable;
+    bool throttling_enable;
+    bool using_disk_cache;
+    int cache_max_size;
+
+    std::string proxy_host;
+    std::vector<std::string> quic_host_whitelist;
+  };
+
   HttpRequestContextGetter(
-      scoped_refptr<base::SingleThreadTaskRunner> fetch_task_runner);
+      Params context_getter_params,
+      scoped_refptr<base::SingleThreadTaskRunner> network_task_runner);
 
   // Implements net::URLRequestContextGetter
   net::URLRequestContext* GetURLRequestContext() override;
@@ -40,13 +69,17 @@ class HttpRequestContextGetter : public net::URLRequestContextGetter {
  private:
   ~HttpRequestContextGetter() override;
 
+  bool LazyInit(Params params);
+
+  Params context_getter_params_;
+
   std::unique_ptr<net::URLRequestContext> url_request_context_;
 
-  scoped_refptr<base::SingleThreadTaskRunner> fetch_task_runner_;
+  scoped_refptr<base::SingleThreadTaskRunner> network_task_runner_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpRequestContextGetter);
 };
 
-} // namespace net
+} // namespace stellite
 
 #endif // STELLITE_FETCHER_HTTP_REQUEST_CONTEXT_GETTER_H_

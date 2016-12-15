@@ -19,6 +19,7 @@
 #include "net/quic/core/quic_connection.h"
 #include "net/quic/core/quic_protocol.h"
 #include "net/tools/quic/quic_dispatcher.h"
+#include "stellite/fetcher/http_request_context_getter.h"
 #include "stellite/server/server_config.h"
 #include "stellite/server/server_session.h"
 
@@ -26,9 +27,11 @@ namespace base {
 class SingleThreadTaskRunner;
 }
 
-namespace net {
+namespace stellite {
 class HttpFetcher;
-class HttpRequestContextGetter;
+}
+
+namespace net {
 class HttpRewrite;
 class QuicConfig;
 class QuicCryptoServerConfig;
@@ -40,7 +43,8 @@ class QuicCryptoServerConfig;
 class NET_EXPORT ThreadDispatcher : public QuicDispatcher {
  public:
   ThreadDispatcher(
-      scoped_refptr<base::SingleThreadTaskRunner> fetcher_task_runner,
+      scoped_refptr<base::SingleThreadTaskRunner> network_task_runner,
+      const stellite::HttpRequestContextGetter::Params& fetcher_params,
       const QuicConfig& quic_config,
       const QuicCryptoServerConfig* crypto_config,
       const ServerConfig& server_config,
@@ -66,11 +70,12 @@ class NET_EXPORT ThreadDispatcher : public QuicDispatcher {
   QuicClock clock_;
 
   // To fetch HTTP requests on ProxyStream, URLContextGetter is required.
-  scoped_refptr<HttpRequestContextGetter> http_request_context_getter_;
+  scoped_refptr<stellite::HttpRequestContextGetter>
+      http_request_context_getter_;
 
   std::unique_ptr<HttpRewrite> http_rewrite_;
 
-  std::unique_ptr<HttpFetcher> http_fetcher_;
+  std::unique_ptr<stellite::HttpFetcher> http_fetcher_;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadDispatcher);
 };

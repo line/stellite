@@ -20,49 +20,81 @@
 #include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
 #include "net/url_request/url_fetcher.h"
-#include "net/url_request/url_fetcher_delegate.h"
+#include "stellite/fetcher/http_fetcher_delegate.h"
+#include "stellite/include/http_request.h"
+#include "stellite/include/stellite_export.h"
 
 namespace base {
 class Time;
 }
 
-namespace net {
+namespace stellite {
 class HttpFetcher;
-class HttpFetcherDelegate;
+class HttpFetcherImpl;
 class HttpRequestHeaders;
 class URLRequestContextGetter;
 
-class HttpFetcherTask : public URLFetcherDelegate {
+class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
  public:
-  HttpFetcherTask(HttpFetcher* http_fetcher,
-                  base::WeakPtr<HttpFetcherDelegate> delegate,
-                  const int64_t timeout_msec);
+  class Visitor {
+   public:
+    virtual ~Visitor() {}
+
+    virtual void OnTaskComplete(int request_id,
+                                const net::URLFetcher* source,
+                                const net::HttpResponseInfo* response_info) = 0;
+
+    virtual void OnTaskStream(int request_id,
+                              const net::URLFetcher* source,
+                              const net::HttpResponseInfo* response_info,
+                              const char* data, size_t len, bool fin) = 0;
+
+    virtual void OnTaskError(int request_id,
+                             const net::URLFetcher* source,
+                             int error_code) = 0;
+  };
+
+  HttpFetcherTask(HttpFetcher* http_fetcher, int request_id,
+                  base::WeakPtr<Visitor> visitor);
 
   ~HttpFetcherTask() override;
 
   // Fetch URL request
-  void Start(const GURL& url,
-             const URLFetcher::RequestType type,
-  const HttpRequestHeaders& headers,
-  const std::string& body);
+  void Start(const HttpRequest& http_request, int64_t timeout_msec);
 
-  // Implementation for net::URLFetcherDelegate
-  void OnURLFetchComplete(const URLFetcher* source) override;
+  void Stop();
 
-  virtual void OnURLFetchTimeout();
+  // Implementation for net::HttpFetcherDelegate
+  void OnFetchComplete(const net::URLFetcher* source,
+                       const net::HttpResponseInfo* response_info) override;
+
+  void OnFetchStream(const net::URLFetcher* source,
+                     const net::HttpResponseInfo* response_info,
+                     const char* data, size_t len, bool fin) override;
+
+  void OnFetchTimeout();
+
+  HttpFetcherImpl* url_fetcher() {
+    return url_fetcher_.get();
+  }
+
+  Visitor* visitor() {
+    return visitor_.get();
+  }
 
  private:
   HttpFetcher* http_fetcher_; /* not owned */
-  base::WeakPtr<HttpFetcherDelegate> delegate_;
-  std::unique_ptr<URLFetcher> http_fetcher_impl_;
+  int request_id_;
+
+  base::WeakPtr<Visitor> visitor_;
+  std::unique_ptr<HttpFetcherImpl> url_fetcher_;
 
   base::TimeDelta timeout_;
-  base::Time fetch_start_;
   std::unique_ptr<base::OneShotTimer> url_fetch_timeout_timer_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpFetcherTask);
 };
 
-} // namespace net
+} // namespace stellite
 
 #endif // STELLITE_FETCHER_HTTP_FETCHER_TASK_H_

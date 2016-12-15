@@ -25,7 +25,6 @@
 #include "net/tools/quic/quic_dispatcher.h"
 #include "stellite/crypto/quic_ephemeral_key_source.h"
 #include "stellite/fetcher/http_request_context_getter.h"
-#include "stellite/logging/logging.h"
 #include "stellite/server/server_config.h"
 #include "stellite/server/server_packet_writer.h"
 #include "stellite/server/thread_dispatcher.h"
@@ -66,7 +65,7 @@ bool ThreadWorker::Initialize(
     const std::vector<QuicServerConfigProtobuf*>& protobufs) {
   if (protobufs.size()) {
     if (!crypto_config_.SetConfigs(protobufs, QuicWallTime::Zero())) {
-      FLOG(ERROR) << "Failed to set QUIC server config";
+      LOG(ERROR) << "Failed to set QUIC server config";
       return false;
     }
   } else {
@@ -124,7 +123,7 @@ void ThreadWorker::StartOnBackground() {
 
   int res = socket->Listen(bind_address_);
   if (res < 0) {
-    FLOG(ERROR) << "Listen() failed: " << ErrorToString(res);
+    LOG(ERROR) << "Listen() failed: " << ErrorToString(res);
     exit(1);
   }
 
@@ -134,28 +133,35 @@ void ThreadWorker::StartOnBackground() {
   res = socket->SetReceiveBufferSize(
       static_cast<int>(server_config().recv_buffer_size()));
   if (res < 0) {
-    FLOG(ERROR) << "SetReceiveBufferSize() failed: " << ErrorToString(res);
+    LOG(ERROR) << "SetReceiveBufferSize() failed: " << ErrorToString(res);
     exit(1);
   }
 
   res = socket->SetSendBufferSize(server_config().send_buffer_size());
   if (res < 0) {
-    FLOG(ERROR) << "SetSendBufferSize() failed: " << ErrorToString(res);
+    LOG(ERROR) << "SetSendBufferSize() failed: " << ErrorToString(res);
     exit(1);
   }
 
   res = socket->GetLocalAddress(&server_address_);
   if (res < 0) {
-    FLOG(ERROR) << "GetLocalAddress() failed: " << ErrorToString(res);
+    LOG(ERROR) << "GetLocalAddress() failed: " << ErrorToString(res);
     exit(1);
   }
 
-  FLOG(INFO) << "Listening on " << server_address_.ToString();
+  LOG(INFO) << "Listening on " << server_address_.ToString();
 
   socket_.swap(socket);
 
+  stellite::HttpRequestContextGetter::Params fetcher_params;
+  fetcher_params.enable_http2 = true;
+  fetcher_params.enable_quic = true;
+  fetcher_params.ignore_certificate_errors = false;
+  fetcher_params.using_disk_cache = false;
+
   dispatcher_.reset(new ThreadDispatcher(
       fetch_task_runner(),
+      fetcher_params,
       quic_config(),
       crypto_config(),
       server_config(),
@@ -221,7 +227,7 @@ void ThreadWorker::OnReadComplete(int result) {
   }
 
   if (result < 0) {
-    FLOG(ERROR) << "ThreadWorker read failed: " << ErrorToString(result);
+    LOG(ERROR) << "ThreadWorker read failed: " << ErrorToString(result);
     Stop();
     return;
   }

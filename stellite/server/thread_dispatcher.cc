@@ -21,7 +21,8 @@ namespace net {
 class QuicServerSessionBase;
 
 ThreadDispatcher::ThreadDispatcher(
-    scoped_refptr<base::SingleThreadTaskRunner> fetch_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> fetcher_task_runner,
+    const stellite::HttpRequestContextGetter::Params& fetcher_params,
     const QuicConfig& quic_config,
     const QuicCryptoServerConfig* crypto_config,
     const ServerConfig& server_config,
@@ -35,8 +36,10 @@ ThreadDispatcher::ThreadDispatcher(
         base::WrapUnique(alarm_factory)),
       server_config_(server_config),
       http_request_context_getter_(
-          new HttpRequestContextGetter(fetch_task_runner)),
-      http_fetcher_(new HttpFetcher(http_request_context_getter_.get())) {
+          new stellite::HttpRequestContextGetter(fetcher_params,
+                                                 fetcher_task_runner)),
+      http_fetcher_(
+          new stellite::HttpFetcher(http_request_context_getter_.get())) {
 }
 
 ThreadDispatcher::~ThreadDispatcher() {}

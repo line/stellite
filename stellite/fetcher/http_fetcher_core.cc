@@ -25,17 +25,18 @@
 #include "net/base/upload_data_stream.h"
 #include "net/base/upload_file_element_reader.h"
 #include "net/http/http_response_headers.h"
+#include "net/http/http_response_info.h"
 #include "net/url_request/redirect_info.h"
 #include "net/url_request/url_fetcher_delegate.h"
 #include "net/url_request/url_fetcher_response_writer.h"
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_context_getter.h"
 #include "net/url_request/url_request_throttler_manager.h"
+#include "stellite/fetcher/http_fetcher_delegate.h"
 
 namespace {
 
 const int kBufferSize = 4096;
-const int kUploadProgressTimerInterval = 100;
 bool g_ignore_certificate_requests = false;
 
 void EmptyCompletionCallback(int result) {}
@@ -66,14 +67,11 @@ void HttpFetcherCore::Registry::CancelAll() {
 
 // HttpFetcherCore -------------------------------------------------------------
 
-// static
-// base::LazyInstance<HttpFetcherCore::Registry>
-//     HttpFetcherCore::g_registry = LAZY_INSTANCE_INITIALIZER;
-
 HttpFetcherCore::HttpFetcherCore(URLFetcher* fetcher,
-                               const GURL& original_url,
-                               URLFetcher::RequestType request_type,
-                               URLFetcherDelegate* d)
+                                 const GURL& original_url,
+                                 URLFetcher::RequestType request_type,
+                                 stellite::HttpFetcherDelegate* d,
+                                 bool stream_response)
     : fetcher_(fetcher),
       original_url_(original_url),
       request_type_(request_type),
@@ -103,7 +101,9 @@ HttpFetcherCore::HttpFetcherCore(URLFetcher* fetcher,
       max_retries_on_network_changes_(0),
       current_upload_bytes_(-1),
       current_response_bytes_(0),
-      total_response_bytes_(-1) {
+      total_response_bytes_(-1),
+      stream_response_(stream_response),
+      response_info_(nullptr) {
   CHECK(original_url_.is_valid());
 }
 
@@ -140,7 +140,7 @@ void HttpFetcherCore::Stop() {
 }
 
 void HttpFetcherCore::SetUploadData(const std::string& upload_content_type,
-                                   const std::string& upload_content) {
+                                    const std::string& upload_content) {
   AssertHasNoUploadData();
   DCHECK(!is_chunked_upload_);
   DCHECK(upload_content_type_.empty());
@@ -202,7 +202,7 @@ void HttpFetcherCore::SetChunkedUpload(const std::string& content_type) {
 }
 
 void HttpFetcherCore::AppendChunkToUpload(const std::string& content,
-                                         bool is_last_chunk) {
+                                          bool is_last_chunk) {
   DCHECK(delegate_task_runner_.get());
   DCHECK(network_task_runner_.get());
   DCHECK(is_chunked_upload_);
@@ -396,8 +396,8 @@ bool HttpFetcherCore::GetResponseAsFilePath(bool take_ownership,
 }
 
 void HttpFetcherCore::OnReceivedRedirect(URLRequest* request,
-                                        const RedirectInfo& redirect_info,
-                                        bool* defer_redirect) {
+                                         const RedirectInfo& redirect_info,
+                                         bool* defer_redirect) {
   DCHECK_EQ(request, request_.get());
   DCHECK(network_task_runner_->BelongsToCurrentThread());
   if (stop_on_redirect_) {
@@ -424,6 +424,7 @@ void HttpFetcherCore::OnResponseStarted(URLRequest* request, int net_error) {
     was_fetched_via_proxy_ = request_->was_fetched_via_proxy();
     was_cached_ = request_->was_cached();
     total_response_bytes_ = request_->GetExpectedContentSize();
+    response_info_.reset(new HttpResponseInfo(request->response_info()));
   }
 
   ReadResponse();
@@ -443,7 +444,7 @@ void HttpFetcherCore::OnCertificateRequested(
 }
 
 void HttpFetcherCore::OnReadCompleted(URLRequest* request,
-                                     int bytes_read) {
+                                      int bytes_read) {
   DCHECK_EQ(request, request_.get());
   DCHECK(network_task_runner_->BelongsToCurrentThread());
 
@@ -456,7 +457,6 @@ void HttpFetcherCore::OnReadCompleted(URLRequest* request,
 
   while (bytes_read > 0) {
     current_response_bytes_ += bytes_read;
-    InformDelegateDownloadProgress();
 
     const int result =
         WriteBuffer(new DrainableIOBuffer(buffer_.get(), bytes_read));
@@ -489,11 +489,9 @@ void HttpFetcherCore::OnContextShuttingDown() {
 }
 
 void HttpFetcherCore::CancelAll() {
-  // g_registry.Get().CancelAll();
 }
 
 int HttpFetcherCore::GetNumFetcherCores() {
-  // return g_registry.Get().size();
   return 0;
 }
 
@@ -544,7 +542,6 @@ void HttpFetcherCore::StartURLRequest() {
   DCHECK(request_context_getter_.get());
   DCHECK(!request_.get());
 
-  // g_registry.Get().AddHttpFetcherCore(this);
   current_response_bytes_ = 0;
   request_context_getter_->AddObserver(this);
   request_ = request_context_getter_->GetURLRequestContext()->CreateRequest(
@@ -606,12 +603,6 @@ void HttpFetcherCore::StartURLRequest() {
       current_upload_bytes_ = -1;
       // TODO(kinaba): http://crbug.com/118103. Implement upload callback in the
       //  layer and avoid using timer here.
-      upload_progress_checker_timer_.reset(new base::RepeatingTimer());
-      upload_progress_checker_timer_->Start(
-          FROM_HERE,
-          base::TimeDelta::FromMilliseconds(kUploadProgressTimerInterval),
-          this,
-          &HttpFetcherCore::InformDelegateUploadProgress);
       break;
     }
 
@@ -718,8 +709,37 @@ void HttpFetcherCore::OnCompletedURLRequest(
 
 void HttpFetcherCore::InformDelegateFetchIsComplete() {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
-  if (delegate_)
-    delegate_->OnURLFetchComplete(fetcher_);
+  if (delegate_) {
+    if (stream_response_) {
+      delegate_->OnFetchStream(fetcher_, response_info_.get(),
+                               nullptr, 0, true /* fin */);
+    } else {
+      delegate_->OnFetchComplete(fetcher_, response_info_.get());
+    }
+  }
+}
+
+void HttpFetcherCore::InformDelegateFetchStream(
+    scoped_refptr<DrainableIOBuffer> data) {
+  delegate_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&HttpFetcherCore::InformDelegateFetchStreamInDelegateThread,
+                 this, data));
+}
+
+void HttpFetcherCore::InformDelegateFetchStreamInDelegateThread(
+    scoped_refptr<DrainableIOBuffer> data) {
+  DCHECK(delegate_task_runner_->BelongsToCurrentThread());
+
+  int stream_size = data->BytesRemaining();
+  if (delegate_) {
+    delegate_->OnFetchStream(fetcher_, response_info_.get(),
+                             data->data(), stream_size, false);
+  }
+
+  network_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&HttpFetcherCore::DidWriteBuffer, this, data, stream_size));
 }
 
 void HttpFetcherCore::NotifyMalformedContent() {
@@ -811,9 +831,7 @@ void HttpFetcherCore::CancelRequestAndInformDelegate(int result) {
 
 void HttpFetcherCore::ReleaseRequest() {
   request_context_getter_->RemoveObserver(this);
-  upload_progress_checker_timer_.reset();
   request_.reset();
-  // g_registry.Get().RemoveHttpFetcherCore(this);
 }
 
 base::TimeTicks HttpFetcherCore::GetBackoffReleaseTime() {
@@ -844,6 +862,11 @@ void HttpFetcherCore::CompleteAddingUploadDataChunk(
 }
 
 int HttpFetcherCore::WriteBuffer(scoped_refptr<DrainableIOBuffer> data) {
+  if (stream_response_ && data->BytesRemaining() > 0) {
+    InformDelegateFetchStream(data);
+    return ERR_IO_PENDING;
+  }
+
   while (data->BytesRemaining() > 0) {
     const int result = response_writer_->Write(
         data.get(),
@@ -856,11 +879,12 @@ int HttpFetcherCore::WriteBuffer(scoped_refptr<DrainableIOBuffer> data) {
     }
     data->DidConsume(result);
   }
+
   return OK;
 }
 
 void HttpFetcherCore::DidWriteBuffer(scoped_refptr<DrainableIOBuffer> data,
-                                    int result) {
+                                     int result) {
   if (result < 0) {  // Handle errors.
     response_writer_->Finish(base::Bind(&EmptyCompletionCallback));
     CancelRequestAndInformDelegate(result);
@@ -889,63 +913,6 @@ void HttpFetcherCore::ReadResponse() {
     bytes_read = request_->Read(buffer_.get(), kBufferSize);
 
   OnReadCompleted(request_.get(), bytes_read);
-}
-
-void HttpFetcherCore::InformDelegateUploadProgress() {
-  DCHECK(network_task_runner_->BelongsToCurrentThread());
-  if (request_.get()) {
-    int64_t current = request_->GetUploadProgress().position();
-    if (current_upload_bytes_ != current) {
-      current_upload_bytes_ = current;
-      int64_t total = -1;
-      if (!is_chunked_upload_) {
-        total = static_cast<int64_t>(request_->GetUploadProgress().size());
-        // Total may be zero if the UploadDataStream::Init has not been called
-        // yet. Don't send the upload progress until the size is initialized.
-        if (!total)
-          return;
-      }
-      delegate_task_runner_->PostTask(
-          FROM_HERE,
-          base::Bind(
-              &HttpFetcherCore::InformDelegateUploadProgressInDelegateThread,
-              this, current, total));
-    }
-  }
-}
-
-void HttpFetcherCore::InformDelegateUploadProgressInDelegateThread(
-    int64_t current,
-    int64_t total) {
-  DCHECK(delegate_task_runner_->BelongsToCurrentThread());
-  if (delegate_)
-    delegate_->OnURLFetchUploadProgress(fetcher_, current, total);
-}
-
-void HttpFetcherCore::InformDelegateDownloadProgress() {
-  DCHECK(network_task_runner_->BelongsToCurrentThread());
-
-  // TODO(pkasting): Remove ScopedTracker below once crbug.com/455952 is fixed.
-  tracked_objects::ScopedTracker tracking_profile2(
-      FROM_HERE_WITH_EXPLICIT_FUNCTION(
-          "455952 delegate_task_runner_->PostTask()"));
-
-  delegate_task_runner_->PostTask(
-      FROM_HERE,
-      base::Bind(
-          &HttpFetcherCore::InformDelegateDownloadProgressInDelegateThread, this,
-          current_response_bytes_, total_response_bytes_,
-          request_->GetTotalReceivedBytes()));
-}
-
-void HttpFetcherCore::InformDelegateDownloadProgressInDelegateThread(
-    int64_t current,
-    int64_t total,
-    int64_t current_network_bytes) {
-  DCHECK(delegate_task_runner_->BelongsToCurrentThread());
-  if (delegate_)
-    delegate_->OnURLFetchDownloadProgress(fetcher_, current, total,
-                                          current_network_bytes);
 }
 
 void HttpFetcherCore::AssertHasNoUploadData() const {

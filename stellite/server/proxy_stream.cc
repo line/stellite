@@ -20,7 +20,6 @@
 #include "net/spdy/spdy_http_utils.h"
 #include "stellite/fetcher/http_rewrite.h"
 #include "stellite/fetcher/spdy_utils.h"
-#include "stellite/logging/logging.h"
 #include "stellite/server/parse_util.h"
 #include "stellite/server/server_session.h"
 #include "stellite/stats/server_stats_macro.h"
@@ -35,7 +34,7 @@ const SpdyMajorVersion kProtocolVersion = HTTP2;
 
 ProxyStream::ProxyStream(const ServerConfig& server_config,
                          QuicStreamId id, ServerSession* session,
-                         HttpFetcher* http_fetcher,
+                         stellite::HttpFetcher* http_fetcher,
                          const HttpRewrite* http_rewrite)
     : QuicSimpleServerStream(id, session),
       per_connection_session_(session),
@@ -46,12 +45,13 @@ ProxyStream::ProxyStream(const ServerConfig& server_config,
       weak_factory_(this) {
 }
 
-ProxyStream::~ProxyStream() {
-}
+ProxyStream::~ProxyStream() {}
 
-void ProxyStream::OnFetchComplete(const URLFetcher* source, int64_t msec) {
+void ProxyStream::OnTaskComplete(int request_id, const URLFetcher* source,
+                                 const HttpResponseInfo* response_info) {
+
   if (source == NULL) {
-    FLOG(ERROR) << "URLFetcher reseponse callback with NULL fetcher.";
+    LOG(ERROR) << "URLFetcher reseponse callback with NULL fetcher.";
     return;
   }
 
@@ -73,12 +73,25 @@ void ProxyStream::OnFetchComplete(const URLFetcher* source, int64_t msec) {
 
   per_connection_session_->AddHttpStat(kHttpReceived, 1);
 
-  WriteAccessLog(source->GetResponseCode(), msec);
+  WriteAccessLog(source->GetResponseCode(), -1);
 }
 
-void ProxyStream::OnFetchTimeout(int64_t msec) {
-  ErrorResponse(408, "Request Timeout", msec);
-  per_connection_session_->AddHttpStat(kHttpTimeout, 1);
+void ProxyStream::OnTaskStream(int request_id, const URLFetcher* source,
+                               const HttpResponseInfo* response_info,
+                               const char* data, size_t len, bool fin) {
+  if (len == 0 || !fin) {
+    return;
+  }
+
+  WriteOrBufferData(std::string(data, len), fin, nullptr);
+}
+
+void ProxyStream::OnTaskError(int request_id, const URLFetcher* source,
+                              int error_code) {
+  if (error_code == ERR_TIMED_OUT) {
+    ErrorResponse(408, "Request Timeout", -1);
+    per_connection_session_->AddHttpStat(kHttpTimeout, 1);
+  }
 }
 
 void ProxyStream::SendResponse() {
@@ -122,8 +135,24 @@ void ProxyStream::SendResponse() {
   http_request_headers.SetHeader("X-Real-IP", client_ip);
   http_request_headers.SetHeader("X-Forwarded-For", client_ip);
 
-  http_fetcher_->Fetch(proxy_url_, proxy_method_, http_request_headers, body(),
-                       proxy_timeout_, weak_factory_.GetWeakPtr());
+  stellite::HttpRequest http_request;
+  http_request.url = proxy_url_.spec();
+
+  std::string transfer_encoding;
+  http_request_headers.GetHeader(HttpRequestHeaders::kTransferEncoding,
+                                 &transfer_encoding);
+  if (transfer_encoding == "chunked") {
+    http_request.is_chunked_upload = true;
+    http_request.is_stream_response = true;
+  } else {
+    const std::string& payload = body();
+    http_request.upload_stream.write(payload.data(), payload.size());
+  }
+
+  http_request.headers.SetRawHeader(http_request_headers.ToString());
+
+  http_fetcher_->Request(http_request, 0 /* delegate */,
+                         weak_factory_.GetWeakPtr());
 
   per_connection_session_->AddHttpStat(kHttpSent, 1);
 }
@@ -178,11 +207,11 @@ void ProxyStream::WriteAccessLog(int response_code, int64_t msec) {
 
   const IPEndPoint& client_address =
       per_connection_session_->connection()->peer_address();
-  FLOG(ACCESS) << client_address.ToStringWithoutPort()
-               << "::" << msec
-               << "::" << response_code
-               << "::" << request_method
-               << "::" << proxy_url_;
+  LOG(INFO) << client_address.ToStringWithoutPort()
+            << "::" << msec
+            << "::" << response_code
+            << "::" << request_method
+            << "::" << proxy_url_;
 }
 
 }  // namespace net

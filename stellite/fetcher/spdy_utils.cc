@@ -14,8 +14,8 @@
 
 #include "stellite/fetcher/spdy_utils.h"
 
+#include "base/logging.h"
 #include "base/strings/string_piece.h"
-#include "stellite/logging/logging.h"
 #include "net/http/http_request_headers.h"
 
 namespace net {
@@ -51,7 +51,7 @@ URLFetcher::RequestType ParseMethod(const SpdyHeaderBlock& spdy_headers,
     return URLFetcher::RequestType::PATCH;
   }
 
-  FLOG(DEBUG) << "Unknown request method: " << method;
+  LOG(ERROR) << "Unknown request method: " << method;
   return URLFetcher::RequestType::GET;
 }
 
@@ -60,7 +60,7 @@ std::string ParseHeader(const std::string& header_key,
                         const SpdyMajorVersion spdy_version) {
   SpdyHeaderBlock::const_iterator it = spdy_headers.find(header_key);
   if (it == spdy_headers.end()) {
-    FLOG(ERROR) << "Cannot find an HTTP method: " << header_key;
+    LOG(ERROR) << "Cannot find an HTTP method: " << header_key;
     return std::string();
   }
 
