@@ -37,7 +37,7 @@ component("trident_http_client") {
 
 executable("trident_http_client_bin") {
   sources = [
-    "trident_http_client_bin.cc",
+    "bin/trident_http_client_bin.cc",
   ]
 
   deps = [
@@ -69,7 +69,7 @@ component("trident_base") {
 
 component("trident_base_bin") {
   sources = [
-    "trident_base_bin.cc",
+    "bin/trident_base_bin.cc",
   ]
 
   deps = [
@@ -79,7 +79,7 @@ component("trident_base_bin") {
 
 executable("trident_client_binder_bin") {
   sources = [
-    "trident_client_binder_bin.cc",
+    "bin/trident_client_binder_bin.cc",
   ]
 
   deps = [

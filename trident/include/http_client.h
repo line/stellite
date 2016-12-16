@@ -68,8 +68,13 @@ class TRIDENT_EXPORT HttpClientVisitor {
                               const char* body, size_t body_len,
                               int connection_info) = 0;
 
+  virtual void OnHttpStream(int request_id, int response_code,
+                                const char* raw_header, size_t header_len,
+                                const char* stream, size_t stream_len,
+                                bool is_last_stream, int connection_info) = 0;
+
   virtual void OnError(int request_id, int error_code,
-                       const char* reason, size_t len)=0;
+                       const char* reason, size_t len) = 0;
 };
 
 class TRIDENT_EXPORT HttpClient {
@@ -85,28 +90,27 @@ class TRIDENT_EXPORT HttpClient {
   struct Params {
     bool using_http2;
     bool using_quic;
-    bool using_spdy;
   };
 
   explicit HttpClient(Params params, HttpClientVisitor* visitor);
   virtual ~HttpClient();
 
   // caution: raw_header delimiter must \r\n
+  // if chunked_upload are true body and body_len are ignored
   int Request(RequestMethod method,
               const char* url, size_t url_len,
               const char* raw_header, size_t header_len,
-              const char* body, size_t body_len);
+              const char* body, size_t body_len, bool chunked_upload,
+              bool stream_response, int timeout);
 
-  int Request(RequestMethod method,
-              const char* url, size_t url_len,
-              const char* raw_header, size_t header_len,
-              const char* body, size_t body_len, int timeout);
+  bool AppendChunkToUpload(int request_id, const char* chunk, size_t len,
+                           bool is_last);
 
   void CancelAll();
 
  private:
-  class HttpClientImpl;
-  HttpClientImpl* impl_;
+  class ClientImpl;
+  ClientImpl* impl_;
 
   // disallow copy and assign
   HttpClient(const HttpClient&);

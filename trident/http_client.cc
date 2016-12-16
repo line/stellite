@@ -35,99 +35,30 @@
 namespace trident {
 class HttpClientVisitor;
 
-const char kMethodDelete[] = "DELETE";
-const char kMethodGet[] = "GET";
-const char kMethodHead[] = "HEAD";
-const char kMethodPost[] = "POST";
-const char kMethodPut[] = "PUT";
-
-const int kDefaultRequestTimeout = 60 * 1000; // 60 seconds
-
 class TRIDENT_EXPORT HttpResponseDelegate
     : public stellite::HttpResponseDelegate {
  public:
-  HttpResponseDelegate(HttpClientVisitor* visitor)
-      : visitor_(visitor) {
-  }
-
-  ~HttpResponseDelegate() override {}
+  HttpResponseDelegate(HttpClientVisitor* visitor);
+  ~HttpResponseDelegate() override;
 
   void OnHttpResponse(int request_id, const stellite::HttpResponse& response,
-                      const char* data, size_t len) override {
-    const std::string& raw_headers = response.headers.raw_headers();
-    visitor_->OnHttpResponse(request_id,
-                             response.response_code,
-                             raw_headers.c_str(), raw_headers.size(),
-                             data, len,
-                             static_cast<int>(response.connection_info));
-  }
-
+                      const char* data, size_t len) override;
   void OnHttpStream(int request_id, const stellite::HttpResponse& response,
-                    const char* data, size_t len) override {
-    const std::string& raw_headers = response.headers.raw_headers();
-    visitor_->OnHttpResponse(request_id, response.response_code,
-                             raw_headers.c_str(), raw_headers.size(),
-                             data, len,
-                             static_cast<int>(response.connection_info));
-  }
-
+                    const char* data, size_t len, bool fin) override;
   void OnHttpError(int request_id, int error_code,
-                   const std::string& error_message) override {
-    visitor_->OnError(request_id, error_code, error_message.c_str(),
-                      error_message.size());
-  }
-
+                   const std::string& error_message) override;
  private:
   HttpClientVisitor* visitor_;
 };
 
-class TRIDENT_EXPORT HttpClient::HttpClientImpl {
+class TRIDENT_EXPORT HttpClient::ClientImpl {
  public:
-  HttpClientImpl(HttpClient::Params& params, HttpClientVisitor* visitor)
-      : visitor_(visitor),
-        response_delegate_(new HttpResponseDelegate(visitor)) {
-    InitInternal(params);
-  }
+  ClientImpl(HttpClient::Params& params, HttpClientVisitor* visitor);
+  ~ClientImpl();
 
-  ~HttpClientImpl() {}
-
-  int Request(HttpClient::RequestMethod method,
-              const std::string& url,
-              const std::string& raw_header,
-              const std::string& body,
-              int timeout) {
-    stellite::HttpRequest request;
-    request.url = url;
-
-    switch (method) {
-      case HttpClient::HTTP_GET:
-        request.method = kMethodGet;
-        break;
-      case HttpClient::HTTP_POST:
-        request.method = kMethodPost;
-        break;
-      case HttpClient::HTTP_PUT:
-        request.method = kMethodPut;
-        break;
-      case HttpClient::HTTP_DELETE:
-        request.method = kMethodDelete;
-        break;
-      case HttpClient::HTTP_HEAD:
-        request.method = kMethodHead;
-        break;
-      default:
-        request.method = kMethodGet;
-        break;
-    }
-
-    request.headers.SetRawHeader(raw_header);
-
-    if (body.size()) {
-      request.upload_stream.write(body.c_str(), body.size());
-    }
-
-    return http_client_->Request(request, timeout);
-  }
+  int Request(HttpClient::RequestMethod method, const std::string& url,
+              const std::string& raw_header, const std::string& body,
+              bool chunked_upload, bool stream_response, int timeout);
 
   HttpClientVisitor* client_visitor() {
     return visitor_;
@@ -138,38 +69,8 @@ class TRIDENT_EXPORT HttpClient::HttpClientImpl {
   }
 
  private:
-  void InitInternal(HttpClient::Params& params) {
-    stellite::HttpClientContext::Params context_params;
-    context_params.using_http2 = params.using_http2;
-    context_params.using_quic = params.using_quic;
-    context_params.using_spdy = params.using_spdy;
-
-    context_.reset(new stellite::HttpClientContext(context_params));
-    if (!context_->Initialize()) {
-      LLOG(ERROR) << "context initialize are failed";
-      return;
-    }
-
-    // create internal client
-    http_client_ = context_->CreateHttpClient(response_delegate_.get());
-  }
-
-  void TeardownInternal() {
-    if (!context_.get()) {
-      LLOG(ERROR) << "context is not initialized error";
-      return;
-    }
-
-    // release internal client
-    context_->ReleaseHttpClient(http_client_);
-
-    if (!context_->TearDown()) {
-      LLOG(ERROR) << "context teardown are failed";
-      return;
-    }
-
-    http_client_ = nullptr;
-  }
+  void InitInternal(HttpClient::Params& params);
+  void TeardownInternal();
 
   HttpClientVisitor* visitor_;
   std::unique_ptr<stellite::HttpClientContext> context_;
@@ -178,8 +79,125 @@ class TRIDENT_EXPORT HttpClient::HttpClientImpl {
   stellite::HttpClient* http_client_;
 };
 
+HttpResponseDelegate::HttpResponseDelegate(HttpClientVisitor* visitor)
+  : visitor_(visitor) {
+}
+
+HttpResponseDelegate::~HttpResponseDelegate() {}
+
+void HttpResponseDelegate::OnHttpResponse(
+    int request_id, const stellite::HttpResponse& response,
+    const char* data, size_t len) {
+  const std::string& raw_headers = response.headers.raw_headers();
+  visitor_->OnHttpResponse(request_id,
+                           response.response_code,
+                           raw_headers.c_str(), raw_headers.size(),
+                           data, len,
+                           static_cast<int>(response.connection_info));
+}
+
+void HttpResponseDelegate::OnHttpStream(
+    int request_id, const stellite::HttpResponse& response,
+    const char* data, size_t len, bool fin) {
+  const std::string& raw_headers = response.headers.raw_headers();
+  visitor_->OnHttpStream(request_id, response.response_code,
+                         raw_headers.c_str(), raw_headers.size(),
+                         data, len, fin,
+                         static_cast<int>(response.connection_info));
+}
+
+void HttpResponseDelegate::OnHttpError(int request_id, int error_code,
+                                       const std::string& error_message) {
+  visitor_->OnError(request_id, error_code, error_message.c_str(),
+                    error_message.size());
+}
+
+HttpClient::ClientImpl::ClientImpl(HttpClient::Params& params,
+                                   HttpClientVisitor* visitor)
+  : visitor_(visitor),
+    response_delegate_(new HttpResponseDelegate(visitor)) {
+  InitInternal(params);
+}
+
+HttpClient::ClientImpl::~ClientImpl() {
+  TeardownInternal();
+}
+
+int HttpClient::ClientImpl::Request(HttpClient::RequestMethod method,
+                                    const std::string& url,
+                                    const std::string& raw_header,
+                                    const std::string& body,
+                                    bool chunked_upload,
+                                    bool stream_response,
+                                    int timeout) {
+  stellite::HttpRequest request;
+  request.url = url;
+
+  switch (method) {
+    case HttpClient::HTTP_GET:
+      request.request_type = stellite::HttpRequest::GET;
+      break;
+    case HttpClient::HTTP_POST:
+      request.request_type = stellite::HttpRequest::POST;
+      break;
+    case HttpClient::HTTP_PUT:
+      request.request_type = stellite::HttpRequest::PUT;
+      break;
+    case HttpClient::HTTP_DELETE:
+      request.request_type = stellite::HttpRequest::DELETE_REQUEST;
+      break;
+    case HttpClient::HTTP_HEAD:
+      request.request_type = stellite::HttpRequest::HEAD;
+      break;
+    default:
+      request.request_type = stellite::HttpRequest::GET;
+      break;
+  }
+
+  request.headers.SetRawHeader(raw_header);
+
+  if (body.size()) {
+    request.upload_stream.write(body.c_str(), body.size());
+  }
+
+  return http_client_->Request(request, timeout);
+}
+
+
+void HttpClient::ClientImpl::InitInternal(HttpClient::Params& params) {
+  stellite::HttpClientContext::Params context_params;
+  context_params.using_http2 = params.using_http2;
+  context_params.using_quic = params.using_quic;
+
+  context_.reset(new stellite::HttpClientContext(context_params));
+  if (!context_->Initialize()) {
+    LLOG(ERROR) << "context initialize are failed";
+    return;
+  }
+
+  // create internal client
+  http_client_ = context_->CreateHttpClient(response_delegate_.get());
+}
+
+void HttpClient::ClientImpl::TeardownInternal() {
+  if (!context_.get()) {
+    LLOG(ERROR) << "context is not initialized error";
+    return;
+  }
+
+  // release internal client
+  context_->ReleaseHttpClient(http_client_);
+
+  if (!context_->TearDown()) {
+    LLOG(ERROR) << "context teardown are failed";
+    return;
+  }
+
+  http_client_ = nullptr;
+}
+
 HttpClient::HttpClient(Params params, HttpClientVisitor* visitor)
-    : impl_(new HttpClientImpl(params, visitor)) {
+    : impl_(new ClientImpl(params, visitor)) {
 }
 
 HttpClient::~HttpClient() {
@@ -189,23 +207,18 @@ HttpClient::~HttpClient() {
 int HttpClient::Request(RequestMethod method,
                         const char* raw_url, size_t url_len,
                         const char* raw_header, size_t header_len,
-                        const char* raw_body, size_t body_len) {
-  return Request(method, raw_url, url_len, raw_header, header_len, raw_body,
-                 body_len, kDefaultRequestTimeout);
-}
-
-int HttpClient::Request(RequestMethod method,
-                        const char* raw_url, size_t url_len,
-                        const char* raw_header, size_t header_len,
-                        const char* raw_body, size_t body_len, int timeout) {
+                        const char* raw_body, size_t body_len,
+                        bool chunked_upload, bool stream_response,
+                        int timeout) {
   std::string url(raw_url, url_len);
   std::string header(raw_header, header_len);
   std::string body(raw_body, body_len);
-  return impl_->Request(method, url, header, body, timeout);
+  return impl_->Request(method, url, header, body, chunked_upload,
+                        stream_response, timeout);
 }
 
 void HttpClient::CancelAll() {
-  impl_->client_context()->Cancel();
+  impl_->client_context()->CancelAll();
 }
 
 #if defined(ANDROID)

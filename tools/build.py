@@ -34,6 +34,7 @@ STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
 STELLITE_QUIC_SERVER = 'stellite_quic_server'
 TARGET = 'target'
 TRIDENT_HTTP_CLIENT = 'trident_http_client'
+TRIDENT_HTTP_CLIENT_BIN = 'trident_http_client_bin'
 UBUNTU = 'ubuntu'
 WINDOWS = 'windows'
 
@@ -332,6 +333,7 @@ def option_parser(args):
                       choices=[STELLITE_QUIC_SERVER,
                                STELLITE_HTTP_CLIENT,
                                TRIDENT_HTTP_CLIENT,
+                               TRIDENT_HTTP_CLIENT_BIN,
                                CLIENT_BINDER,
                                STELLITE_HTTP_CLIENT_BIN,
                                SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN],
