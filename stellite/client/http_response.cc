@@ -102,6 +102,7 @@ HttpResponse::HttpResponse(const HttpResponse& other)
       was_cached(other.was_cached),
       was_fetched_via_proxy(other.was_fetched_via_proxy),
       was_fetched_via_spdy(other.was_fetched_via_spdy),
+      was_fetched_via_quic(other.was_fetched_via_quic),
       request_time(other.request_time),
       response_time(other.response_time),
       connection_info(other.connection_info),

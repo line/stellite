@@ -30,23 +30,27 @@ namespace base {
 class SingleThreadTaskRunner;
 }  // namespace base
 
+namespace stellite {
+class HttpFetcherDelegate;
+}
+
 namespace net {
 class DrainableIOBuffer;
 class HttpResponseHeaders;
 class IOBuffer;
-class URLFetcherDelegate;
 class URLFetcherResponseWriter;
 class URLRequestContextGetter;
 class URLRequestThrottlerEntryInterface;
 
 class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
-                       public URLRequest::Delegate,
-                       public URLRequestContextGetterObserver {
+                        public URLRequest::Delegate,
+                        public URLRequestContextGetterObserver {
  public:
   HttpFetcherCore(URLFetcher* fetcher,
-                 const GURL& original_url,
-                 URLFetcher::RequestType request_type,
-                 URLFetcherDelegate* d);
+                  const GURL& original_url,
+                  URLFetcher::RequestType request_type,
+                  stellite::HttpFetcherDelegate* d,
+                  bool stream_response);
 
   // Starts the load. It's important that this not happen in the constructor
   // because it causes the IO thread to begin AddRef()ing and Release()ing
@@ -144,7 +148,8 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   // Overridden from URLRequestContextGetterObserver:
   void OnContextShuttingDown() override;
 
-  URLFetcherDelegate* delegate() const { return delegate_; }
+  stellite::HttpFetcherDelegate* delegate() const { return delegate_; }
+
   static void CancelAll();
   static int GetNumFetcherCores();
   static void SetEnableInterceptionForTests(bool enabled);
@@ -215,15 +220,10 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   // Read response bytes from the request.
   void ReadResponse();
 
-  // Notify Delegate about the progress of upload/download.
-  void InformDelegateUploadProgress();
-  void InformDelegateUploadProgressInDelegateThread(int64_t current,
-                                                    int64_t total);
-  void InformDelegateDownloadProgress();
-  void InformDelegateDownloadProgressInDelegateThread(
-      int64_t current,
-      int64_t total,
-      int64_t current_network_bytes);
+  // notify streaming data about the download
+  void InformDelegateFetchStream(scoped_refptr<DrainableIOBuffer> data);
+  void InformDelegateFetchStreamInDelegateThread(
+      scoped_refptr<DrainableIOBuffer> data);
 
   // Check if any upload data is set or not.
   void AssertHasNoUploadData() const;
@@ -233,7 +233,8 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   GURL url_;                         // The URL we eventually wound up at
   URLFetcher::RequestType request_type_;  // What type of request is this?
   URLRequestStatus status_;          // Status of the request
-  URLFetcherDelegate* delegate_;     // Object to notify on completion
+  stellite::HttpFetcherDelegate* delegate_;
+
   // Task runner for the creating thread. Used to interact with the delegate.
   scoped_refptr<base::SingleThreadTaskRunner> delegate_task_runner_;
   // Task runner for network operations.
@@ -336,9 +337,6 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   // 0 by default.
   int max_retries_on_network_changes_;
 
-  // Timer to poll the progress of uploading for POST and PUT requests.
-  // When crbug.com/119629 is fixed, scoped_ptr is not necessary here.
-  std::unique_ptr<base::RepeatingTimer> upload_progress_checker_timer_;
   // Number of bytes sent so far.
   int64_t current_upload_bytes_;
   // Number of bytes received so far.
@@ -346,7 +344,9 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   // Total expected bytes to receive (-1 if it cannot be determined).
   int64_t total_response_bytes_;
 
-  static base::LazyInstance<Registry> g_registry;
+  bool stream_response_;
+
+  std::unique_ptr<HttpResponseInfo> response_info_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpFetcherCore);
 };

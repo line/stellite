@@ -16,7 +16,6 @@
 
 #include "base/files/file_util.h"
 #include "base/json/json_reader.h"
-#include "stellite/logging/logging.h"
 
 namespace net {
 
@@ -24,7 +23,7 @@ std::unique_ptr<base::Value> ParseFromJson(const std::string& json) {
   std::unique_ptr<base::Value> value(
       base::JSONReader::Read(json, base::JSON_ALLOW_TRAILING_COMMAS));
   if (!value || !value->IsType(base::Value::TYPE_DICTIONARY)) {
-    FLOG(ERROR) << "Failed to parse config from JSON";
+    LOG(ERROR) << "Failed to parse config from JSON";
     return nullptr;
   }
 
@@ -35,7 +34,7 @@ std::unique_ptr<base::Value> ParseFromJsonFile(
     const base::FilePath& config_file) {
   std::string json;
   if (!base::ReadFileToString(config_file, &json)) {
-    FLOG(ERROR) << "Failed to read " << config_file.value();
+    LOG(ERROR) << "Failed to read " << config_file.value();
     return nullptr;
   }
 

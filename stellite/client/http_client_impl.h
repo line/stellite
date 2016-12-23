@@ -15,39 +15,69 @@
 #ifndef STELLITE_CLIENT_HTTP_CLIENT_IMPL_H_
 #define STELLITE_CLIENT_HTTP_CLIENT_IMPL_H_
 
-#include "stellite/include/http_client.h"
+#include <memory>
 
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "stellite/client/network_transaction_client.h"
+#include "base/memory/weak_ptr.h"
+#include "stellite/fetcher/http_fetcher.h"
+#include "stellite/include/http_client.h"
 #include "stellite/include/stellite_export.h"
-
-namespace net {
-class NetworkTransactionClient;
-}
+#include "stellite/fetcher/http_fetcher_task.h"
 
 namespace stellite {
+class HttpFetcher;
 class HttpResponseDelegate;
 
-class STELLITE_EXPORT HttpClientImpl : public HttpClient {
+class STELLITE_EXPORT HttpClientImpl : public HttpClient,
+                                       public HttpFetcherTask::Visitor {
  public:
-  HttpClientImpl(net::NetworkTransactionClient* transaction_client,
+  HttpClientImpl(HttpFetcher* http_fetcher,
                  HttpResponseDelegate* response_delegate);
   ~HttpClientImpl() override;
 
+  // implements HttpClient interface
   int Request(const HttpRequest& request) override;
-
   int Request(const HttpRequest& request, int timeout) override;
 
-  int Stream(const HttpRequest& request) override;
+  // support chunked upload but if you want to this interface set
+  // HttpRequest.chunked_upload a true
+  bool AppendChunkToUpload(int request_id, const std::string& content,
+                           bool is_last) override;
 
-  int Stream(const HttpRequest& request, int timeout) override;
+  // implements HttpFetcherTask::Visitor
+  void OnTaskComplete(int request_id,
+                      const net::URLFetcher* source,
+                      const net::HttpResponseInfo* response_info) override;
+
+  void OnTaskStream(int request_id,
+                    const net::URLFetcher* source,
+                    const net::HttpResponseInfo* response_info,
+                    const char* data, size_t len, bool fin) override;
+
+  void OnTaskError(int request_id,
+                   const net::URLFetcher* source,
+                   int error_code) override;
 
   void TearDown();
 
  private:
-  scoped_refptr<net::NetworkTransactionClient> network_transaction_client_;
+  using HttpResponseMap = std::map<int, std::unique_ptr<HttpResponse>>;
 
+  HttpResponse* FindResponse(int request_id);
+  HttpResponse* NewResponse(int request_id,
+                            const net::URLFetcher* source,
+                            const net::HttpResponseInfo* response_info);
+  void ReleaseResponse(int request_id);
+
+  HttpFetcher* http_fetcher_;
   HttpResponseDelegate* response_delegate_;
+
+  // cache response data when streaming response or upload progress
+  HttpResponseMap response_map_;
+
+  // to keep net::HttpFetcherTask::Visitor's life-cycle scope
+  base::WeakPtrFactory<HttpFetcherTask::Visitor> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpClientImpl);
 };

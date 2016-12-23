@@ -29,14 +29,15 @@ class STELLITE_EXPORT HttpResponseDelegate {
   virtual ~HttpResponseDelegate() {}
 
   virtual void OnHttpResponse(int request_id, const HttpResponse& response,
-                              const char* body, size_t body_len)=0;
+                              const char* body, size_t body_len) = 0;
 
   virtual void OnHttpStream(int request_id, const HttpResponse& response,
-                            const char* stream_data, size_t stream_len)=0;
+                            const char* stream, size_t stream_len,
+                            bool is_last) = 0;
 
   // The error code are defined at net/base/net_error_list.h
   virtual void OnHttpError(int request_id, int error_code,
-                           const std::string& error_message)=0;
+                           const std::string& error_message) = 0;
 };
 
 // Interface of HTTP request or stream (long-poll, chunked-response)
@@ -45,16 +46,16 @@ class STELLITE_EXPORT HttpClient {
   virtual ~HttpClient() {}
 
   // The delegate owned by HttpClient
-  virtual int Request(const HttpRequest& request)=0;
+  virtual int Request(const HttpRequest& request) = 0;
 
   // The delegate owned by HttpClient
-  virtual int Request(const HttpRequest& request, int timeout)=0;
+  // if timeout set to zero, client cannot check resposne timeout
+  // this rule apply a same rule on Stream() interface
+  virtual int Request(const HttpRequest& request, int timeout) = 0;
 
-  // The delegate owned by HttpClient
-  virtual int Stream(const HttpRequest& request)=0;
-
-  // The delegate owned by HttpClient
-  virtual int Stream(const HttpRequest& request, int timeout)=0;
+  // append chunk context
+  virtual bool AppendChunkToUpload(int request_id, const std::string& content,
+                                   bool is_last_chunk) = 0;
 };
 
 } // namespace stellite
