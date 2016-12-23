@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 //
 
-#ifndef QUIC_TEST_QUIC_TEST_SUITE_H_
-#define QUIC_TEST_QUIC_TEST_SUITE_H_
+#ifndef STELLITE_TEST_STELLITE_TEST_SUITE_H_
+#define STELLITE_TEST_STELLITE_TEST_SUITE_H_
 
 #include <memory>
 
@@ -20,13 +20,12 @@ namespace net {
 class NetworkChangeNotifier;
 } // namespace net
 
-class QuicTestSuite : public base::TestSuite {
+class StelliteTestSuite : public base::TestSuite {
  public:
-  QuicTestSuite(int argc, char** argv);
-  ~QuicTestSuite() override;
+  StelliteTestSuite(int argc, char** argv);
+  ~StelliteTestSuite() override;
 
   void Initialize() override;
-
   void Shutdown() override;
 
  protected:
@@ -40,4 +39,4 @@ class QuicTestSuite : public base::TestSuite {
 };
 
 
-#endif // QUIC_TEST_QUIC_TEST_SUITE_H_
+#endif // STELLITE_TEST_STELLITE_TEST_SUITE_H_

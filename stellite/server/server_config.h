@@ -53,6 +53,10 @@ class NET_EXPORT ServerConfig {
     return logging_;
   }
 
+  bool file_logging() {
+    return file_logging_;
+  }
+
   uint32_t worker_count() const {
     return static_cast<uint32_t>(worker_count_);
   }
@@ -147,6 +151,7 @@ class NET_EXPORT ServerConfig {
   bool daemon_;
   bool stop_;
   bool logging_;
+  bool file_logging_;
 
   int worker_count_;
   int dispatch_continuity_;

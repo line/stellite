@@ -12,32 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "stellite/server/quic_thread_server.h"
+#include "stellite/server/quic_proxy_server.h"
 
+#include "base/memory/ptr_util.h"
 #include "base/threading/thread.h"
-#include "net/base/net_errors.h"
 #include "net/quic/chromium/crypto/proof_source_chromium.h"
-#include "net/quic/core/crypto/quic_random.h"
-#include "net/tools/quic/quic_dispatcher.h"
 #include "stellite/crypto/quic_ephemeral_key_source.h"
-#include "stellite/fetcher/http_rewrite.h"
-#include "stellite/server/thread_dispatcher.h"
-#include "stellite/server/thread_worker.h"
+#include "stellite/server/quic_proxy_worker.h"
 
 namespace net {
-class ServerPacketWriter;
 
-QuicThreadServer::QuicThreadServer(const QuicConfig& quic_config,
-                                   const ServerConfig& server_config,
-                                   const QuicVersionVector& supported_versions)
+class ServerPacketWriter;
+const char* kWorkerThread = "worker thread";
+const char* kFetcherThread = "fetcher thread";
+
+QuicProxyServer::QuicProxyServer(const QuicConfig& quic_config,
+                                 const ServerConfig& server_config,
+                                 const QuicVersionVector& supported_versions)
     : quic_config_(quic_config),
       server_config_(server_config),
       supported_versions_(supported_versions) {
 }
 
-QuicThreadServer::~QuicThreadServer() {}
+QuicProxyServer::~QuicProxyServer() {}
 
-bool QuicThreadServer::Start(size_t worker_size,
+bool QuicProxyServer::Start(size_t worker_size,
     const IPEndPoint& quic_address,
     std::vector<QuicServerConfigProtobuf*> serialized_config) {
 
@@ -51,12 +50,21 @@ bool QuicThreadServer::Start(size_t worker_size,
       return false;
     }
 
-    std::unique_ptr<ThreadWorker> worker(
-        new ThreadWorker(quic_address,
-                         quic_config_,
-                         server_config_,
-                         supported_versions_,
-                         std::move(proof_source)));
+    base::Thread::Options io_options(base::MessageLoop::TYPE_IO, 0);
+    base::Thread* dispatch_thread = new base::Thread(kWorkerThread);
+    dispatch_thread->StartWithOptions(io_options);
+
+    base::Thread* fetch_thread = new base::Thread(kFetcherThread);
+    fetch_thread->StartWithOptions(io_options);
+
+    QuicProxyWorker* worker = new QuicProxyWorker(
+        dispatch_thread->task_runner(),
+        fetch_thread->task_runner(),
+        quic_address,
+        quic_config_,
+        server_config_,
+        supported_versions_,
+        std::move(proof_source));
 
     worker->SetStrikeRegisterNoStartupPeriod();
 
@@ -69,13 +77,17 @@ bool QuicThreadServer::Start(size_t worker_size,
     }
 
     worker->Start();
-    worker_list_.push_back(std::move(worker));
+
+    dispatch_thread_list_.push_back(base::WrapUnique(dispatch_thread));
+    fetch_thread_list_.push_back(base::WrapUnique(fetch_thread));
+
+    worker_list_.push_back(base::WrapUnique(worker));
   }
 
   return true;
 }
 
-bool QuicThreadServer::Shutdown() {
+bool QuicProxyServer::Shutdown() {
   for (size_t i = 0; i < worker_list_.size(); ++i) {
     worker_list_[i]->Stop();
   }
@@ -84,7 +96,7 @@ bool QuicThreadServer::Shutdown() {
   return true;
 }
 
-bool QuicThreadServer::Initialize() {
+bool QuicProxyServer::Initialize() {
   // If an initial flow control window has not explicitly been set, then use a
   // sensible value for a server: 1 MB for session, 64 KB for each stream.
   const uint32_t kInitialSessionFlowControlWindow = 1 * 1024 * 1024;  // 1 MB

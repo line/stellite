@@ -26,7 +26,7 @@
 #include "net/quic/core/crypto/crypto_server_config_protobuf.h"
 #include "net/quic/core/quic_protocol.h"
 #include "stellite/process/daemon.h"
-#include "stellite/server/quic_thread_server.h"
+#include "stellite/server/quic_proxy_server.h"
 
 const char* kDefaultPidFilePath = "/tmp/quic.pid";
 
@@ -88,27 +88,35 @@ int main(int argc, char* argv[]) {
     log_dir = command_line->GetProgram().DirName();
   }
 
-  if (server_config.logging()) {
-    logging::LoggingSettings logging_settings;
-    logging_settings.logging_dest = logging::LOG_TO_SYSTEM_DEBUG_LOG;
-    logging::InitLogging(logging_settings);
+  if (server_config.logging() || server_config.file_logging()) {
+    logging::LoggingSettings settings;
+
+    if (server_config.file_logging()) {
+      settings.logging_dest = logging::LOG_TO_ALL;
+    } else if (server_config.logging()) {
+      settings.logging_dest = logging::LOG_TO_SYSTEM_DEBUG_LOG;
+    } else {
+      settings.logging_dest = logging::LOG_NONE;
+    }
+
+    logging::InitLogging(settings);
   }
 
   net::QuicConfig quic_config;
-  std::unique_ptr<net::QuicThreadServer> quic_thread_server(
-      new net::QuicThreadServer(quic_config,
-                                server_config,
-                                net::AllSupportedVersions()));
+  std::unique_ptr<net::QuicProxyServer> quic_proxy_server(
+      new net::QuicProxyServer(quic_config,
+                               server_config,
+                               net::AllSupportedVersions()));
 
-  quic_thread_server->Initialize();
+  quic_proxy_server->Initialize();
 
   LOG(INFO) << "quic server(" << server_config.quic_port() << ") start";
 
   std::vector<net::QuicServerConfigProtobuf*> serialized_config;
-  quic_thread_server->Start(server_config.worker_count(),
-                            net::IPEndPoint(bind_address,
-                                            server_config.quic_port()),
-                            serialized_config);
+  quic_proxy_server->Start(server_config.worker_count(),
+                           net::IPEndPoint(bind_address,
+                                           server_config.quic_port()),
+                           serialized_config);
 
   base::RunLoop().Run();
 

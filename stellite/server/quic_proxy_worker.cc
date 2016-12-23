@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "stellite/server/thread_worker.h"
+#include "stellite/server/quic_proxy_worker.h"
 
 #include "base/single_thread_task_runner.h"
 #include "base/threading/thread.h"
@@ -25,25 +25,28 @@
 #include "net/tools/quic/quic_dispatcher.h"
 #include "stellite/crypto/quic_ephemeral_key_source.h"
 #include "stellite/fetcher/http_request_context_getter.h"
+#include "stellite/server/quic_proxy_dispatcher.h"
 #include "stellite/server/server_config.h"
 #include "stellite/server/server_packet_writer.h"
-#include "stellite/server/thread_dispatcher.h"
 #include "stellite/socket/quic_udp_server_socket.h"
 
 namespace net {
 
 const int kReadBufferSize = 2 * kMaxPacketSize;
-const char* kDispatchThread = "dispatch thread";
-const char* kFetchThread = "fetch thread";
+const size_t kNumSessionsToCreatePerSocketEvent = 16;
 const char* kSourceAddressTokenSecret = "secret";
 
-ThreadWorker::ThreadWorker(
+QuicProxyWorker::QuicProxyWorker(
+    scoped_refptr<base::SingleThreadTaskRunner> dispatch_task_runner,
+    scoped_refptr<base::SingleThreadTaskRunner> http_fetch_task_runner,
     const IPEndPoint& bind_address,
     const QuicConfig& quic_config,
     const ServerConfig& server_config,
     const QuicVersionVector& supported_versions,
     std::unique_ptr<ProofSource> proof_source)
     : dispatch_continuity_(server_config.dispatch_continuity()),
+      dispatch_task_runner_(dispatch_task_runner),
+      http_fetch_task_runner_(http_fetch_task_runner),
       bind_address_(bind_address),
       quic_config_(quic_config),
       crypto_config_(kSourceAddressTokenSecret,
@@ -55,13 +58,22 @@ ThreadWorker::ThreadWorker(
       synchronous_read_count_(0),
       read_buffer_(new IOBufferWithSize(kReadBufferSize)),
       weak_factory_(this) {
-  CHECK(dispatch_continuity_ >= 1 && dispatch_continuity_ <= 32) <<
-      "keep dispatch_continuity range [1, 32]";
+      CHECK(dispatch_continuity_ >= 1 && dispatch_continuity_ <= 32) <<
+          "keep dispatch_continuity range [1, 32]";
+    }
+
+QuicProxyWorker::~QuicProxyWorker() {}
+
+bool QuicProxyWorker::Initialize() {
+  std::unique_ptr<CryptoHandshakeMessage> scfg(
+      crypto_config_.AddDefaultConfig(
+          QuicRandom::GetInstance(),
+          &clock_,
+          QuicCryptoServerConfig::ConfigOptions()));
+  return true;
 }
 
-ThreadWorker::~ThreadWorker() {}
-
-bool ThreadWorker::Initialize(
+bool QuicProxyWorker::Initialize(
     const std::vector<QuicServerConfigProtobuf*>& protobufs) {
   if (protobufs.size()) {
     if (!crypto_config_.SetConfigs(protobufs, QuicWallTime::Zero())) {
@@ -69,46 +81,30 @@ bool ThreadWorker::Initialize(
       return false;
     }
   } else {
-    std::unique_ptr<CryptoHandshakeMessage> scfg(
-        crypto_config_.AddDefaultConfig(
-            QuicRandom::GetInstance(),
-            &clock_,
-            QuicCryptoServerConfig::ConfigOptions()));
+    return Initialize();
   }
 
   return true;
 }
 
-void ThreadWorker::SetStrikeRegisterNoStartupPeriod() {
+void QuicProxyWorker::SetStrikeRegisterNoStartupPeriod() {
   crypto_config_.set_strike_register_no_startup_period();
 }
 
-void ThreadWorker::SetEphemeralKeySource(EphemeralKeySource* key_source) {
+void QuicProxyWorker::SetEphemeralKeySource(EphemeralKeySource* key_source) {
   crypto_config_.SetEphemeralKeySource(key_source);
 }
 
-void ThreadWorker::Start() {
-  CHECK(!dispatch_thread_.get());
-  CHECK(!fetch_thread_.get());
-  CHECK(crypto_config_.NumberOfConfigs() > 0);
-
-  base::Thread::Options worker_thread_option(base::MessageLoop::TYPE_IO, 0);
-
-  dispatch_thread_.reset(new base::Thread(kDispatchThread));
-  dispatch_thread_->StartWithOptions(worker_thread_option);
-
-  fetch_thread_.reset(new base::Thread(kFetchThread));
-  fetch_thread_->StartWithOptions(worker_thread_option);
-
-  dispatch_task_runner()->PostTask(
-        FROM_HERE,
-        base::Bind(&ThreadWorker::StartOnBackground,
-                   weak_factory_.GetWeakPtr()));
+void QuicProxyWorker::Start() {
+  DCHECK(crypto_config_.NumberOfConfigs() > 0);
+  dispatch_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&QuicProxyWorker::StartOnBackground,
+                 weak_factory_.GetWeakPtr()));
 }
 
-void ThreadWorker::StartOnBackground() {
-  CHECK(dispatch_thread_->task_runner() ==
-        base::ThreadTaskRunnerHandle::Get());
+void QuicProxyWorker::StartOnBackground() {
+  DCHECK(dispatch_task_runner_->BelongsToCurrentThread());
 
   helper_ = new QuicChromiumConnectionHelper(&clock_,
                                              QuicRandom::GetInstance());
@@ -155,19 +151,14 @@ void ThreadWorker::StartOnBackground() {
 
   stellite::HttpRequestContextGetter::Params fetcher_params;
   fetcher_params.enable_http2 = true;
-  fetcher_params.enable_quic = true;
+  fetcher_params.enable_quic = false;
   fetcher_params.ignore_certificate_errors = false;
   fetcher_params.using_disk_cache = false;
 
-  dispatcher_.reset(new ThreadDispatcher(
-      fetch_task_runner(),
-      fetcher_params,
-      quic_config(),
-      crypto_config(),
-      server_config(),
-      &version_manager_,
-      helper_,
-      alarm_factory_));
+  dispatcher_.reset(
+      new QuicProxyDispatcher(fetcher_params, http_fetch_task_runner(),
+                              quic_config(), crypto_config(), server_config(),
+                              &version_manager_, helper_, alarm_factory_));
 
   ServerPacketWriter* writer = new ServerPacketWriter(socket_.get(),
                                                       dispatcher_.get());
@@ -176,14 +167,18 @@ void ThreadWorker::StartOnBackground() {
   StartReading();
 }
 
-void ThreadWorker::Stop() {
-  dispatch_task_runner()->PostTask(
+void QuicProxyWorker::Stop() {
+  dispatch_task_runner_->PostTask(
       FROM_HERE,
-      base::Bind(&ThreadWorker::StopReading,
+      base::Bind(&QuicProxyWorker::StopReading,
                  weak_factory_.GetWeakPtr()));
 }
 
-void ThreadWorker::StartReading() {
+void QuicProxyWorker::StartReading() {
+  if (synchronous_read_count_ == 0) {
+    dispatcher_->ProcessBufferedChlos(kNumSessionsToCreatePerSocketEvent);
+  }
+
   if (read_pending_) {
     return;
   }
@@ -193,18 +188,24 @@ void ThreadWorker::StartReading() {
       read_buffer_.get(),
       read_buffer_->size(),
       &client_address_,
-      base::Bind(&ThreadWorker::OnReadComplete, base::Unretained(this)));
+      base::Bind(&QuicProxyWorker::OnReadComplete, base::Unretained(this)));
 
   if (result == ERR_IO_PENDING) {
     synchronous_read_count_ = 0;
+    if (dispatcher_->HasChlosBuffered()) {
+      dispatch_task_runner_->PostTask(
+          FROM_HERE,
+          base::Bind(&QuicProxyWorker::StartReading,
+                     weak_factory_.GetWeakPtr()));
+    }
     return;
   }
 
   if (++synchronous_read_count_ > dispatch_continuity_) {
     synchronous_read_count_ = 0;
-    dispatch_task_runner()->PostTask(
+    dispatch_task_runner_->PostTask(
         FROM_HERE,
-        base::Bind(&ThreadWorker::OnReadComplete,
+        base::Bind(&QuicProxyWorker::OnReadComplete,
                    weak_factory_.GetWeakPtr(),
                    result));
   } else {
@@ -212,14 +213,14 @@ void ThreadWorker::StartReading() {
   }
 }
 
-void ThreadWorker::StopReading() {
+void QuicProxyWorker::StopReading() {
   dispatcher_->Shutdown();
 
   socket_->Close();
   socket_.reset();
 }
 
-void ThreadWorker::OnReadComplete(int result) {
+void QuicProxyWorker::OnReadComplete(int result) {
   read_pending_ = false;
 
   if (result == 0) {
@@ -227,7 +228,7 @@ void ThreadWorker::OnReadComplete(int result) {
   }
 
   if (result < 0) {
-    LOG(ERROR) << "ThreadWorker read failed: " << ErrorToString(result);
+    LOG(ERROR) << "QuicProxyWorker read failed: " << ErrorToString(result);
     Stop();
     return;
   }
@@ -237,15 +238,6 @@ void ThreadWorker::OnReadComplete(int result) {
   dispatcher_->ProcessPacket(server_address_, client_address_, packet);
 
   StartReading();
-}
-
-scoped_refptr<base::SingleThreadTaskRunner>
-ThreadWorker::dispatch_task_runner() {
-  return dispatch_thread_->task_runner();
-}
-
-scoped_refptr<base::SingleThreadTaskRunner> ThreadWorker::fetch_task_runner() {
-  return fetch_thread_->task_runner();
 }
 
 } // namespace net

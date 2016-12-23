@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "stellite/server/thread_dispatcher.h"
+#include "stellite/server/quic_proxy_dispatcher.h"
 
 #include <utility>
 
@@ -20,9 +20,9 @@ namespace net {
 
 class QuicServerSessionBase;
 
-ThreadDispatcher::ThreadDispatcher(
-    scoped_refptr<base::SingleThreadTaskRunner> fetcher_task_runner,
+QuicProxyDispatcher::QuicProxyDispatcher(
     const stellite::HttpRequestContextGetter::Params& fetcher_params,
+    scoped_refptr<base::SingleThreadTaskRunner> http_fetcher_task_runner,
     const QuicConfig& quic_config,
     const QuicCryptoServerConfig* crypto_config,
     const ServerConfig& server_config,
@@ -36,15 +36,15 @@ ThreadDispatcher::ThreadDispatcher(
         base::WrapUnique(alarm_factory)),
       server_config_(server_config),
       http_request_context_getter_(
-          new stellite::HttpRequestContextGetter(fetcher_params,
-                                                 fetcher_task_runner)),
+          new stellite::HttpRequestContextGetter(
+              fetcher_params, http_fetcher_task_runner)),
       http_fetcher_(
           new stellite::HttpFetcher(http_request_context_getter_.get())) {
 }
 
-ThreadDispatcher::~ThreadDispatcher() {}
+QuicProxyDispatcher::~QuicProxyDispatcher() {}
 
-QuicServerSessionBase* ThreadDispatcher::CreateQuicSession(
+QuicServerSessionBase* QuicProxyDispatcher::CreateQuicSession(
     QuicConnectionId connection_id,
     const IPEndPoint& client_address) {
 
@@ -64,7 +64,7 @@ QuicServerSessionBase* ThreadDispatcher::CreateQuicSession(
   return static_cast<QuicServerSessionBase*>(server_session);
 }
 
-QuicPacketWriter* ThreadDispatcher::CreatePerConnectionWriter() {
+QuicPacketWriter* QuicProxyDispatcher::CreatePerConnectionWriter() {
   return new ServerPerConnectionPacketWriter(
       static_cast<ServerPacketWriter*>(writer()));
 }

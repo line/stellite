@@ -11,8 +11,9 @@ import("//build/config/compiler/compiler.gni")
 import("//build/config/crypto.gni")
 import("//build/config/features.gni")
 import("//build/config/ui.gni")
+import("//testing/test.gni")
 
-component("stellite_base") {
+component("stellite") {
   sources = [
     "client/http_request.cc",
     "client/http_response.cc",
@@ -76,8 +77,12 @@ component("stellite_quic_server_base") {
     "server/parse_util.h",
     "server/proxy_stream.cc",
     "server/proxy_stream.h",
-    "server/quic_thread_server.cc",
-    "server/quic_thread_server.h",
+    "server/quic_proxy_dispatcher.cc",
+    "server/quic_proxy_dispatcher.h",
+    "server/quic_proxy_server.cc",
+    "server/quic_proxy_server.h",
+    "server/quic_proxy_worker.cc",
+    "server/quic_proxy_worker.h",
     "server/server_config.cc",
     "server/server_config.h",
     "server/server_packet_writer.cc",
@@ -88,28 +93,25 @@ component("stellite_quic_server_base") {
     "server/server_session.h",
     "server/server_session_helper.cc",
     "server/server_session_helper.h",
-    "server/thread_dispatcher.cc",
-    "server/thread_dispatcher.h",
-    "server/thread_worker.cc",
-    "server/thread_worker.h",
   ]
 
   deps = [
-    ":stellite_base",
     "//base",
     "//net",
+    ":stellite",
   ]
 }
 
-executable("stellite_quic_server") {
+executable("stellite_quic_server_bin") {
   sources = [
-    "bin/quic_thread_server_main.cc",
+    "bin/stellite_quic_server_bin.cc",
   ]
 
   deps = [
-    ":stellite_base",
     "//base",
     "//net",
+    "//third_party/protobuf:protobuf_lite",
+    ":stellite_quic_server_base",
   ]
 }
 
@@ -126,11 +128,11 @@ component("stellite_http_client") {
   ]
 
   deps = [
-    ":stellite_base",
     "//base",
+    "//base/third_party/dynamic_annotations",
     "//net",
     "//url",
-    "//base/third_party/dynamic_annotations",
+    ":stellite",
   ]
 
   if (is_android) {
@@ -147,14 +149,14 @@ executable("stellite_http_client_bin") {
   ]
 
   deps = [
-    ":stellite_http_client",
     "//base",
-    "//net",
-    "//url",
-    "//build/win:default_exe_manifest",
     "//build/config/sanitizers:deps",
+    "//build/win:default_exe_manifest",
+    "//net",
     "//third_party/boringssl",
     "//third_party/protobuf:protobuf_lite",
+    "//url",
+    ":stellite_http_client",
   ]
 }
 
@@ -164,14 +166,14 @@ executable("simple_chunked_upload_client_bin") {
   ]
 
   deps = [
-    ":stellite_http_client",
     "//base",
-    "//net",
-    "//url",
-    "//build/win:default_exe_manifest",
     "//build/config/sanitizers:deps",
+    "//build/win:default_exe_manifest",
+    "//net",
     "//third_party/boringssl",
     "//third_party/protobuf:protobuf_lite",
+    "//url",
+    ":stellite_http_client",
   ]
 }
 
@@ -182,13 +184,33 @@ component("stellite_client_binder") {
   ]
 
   deps = [
-    ":stellite_http_client",
     "//base",
-    "//net",
-    "//url",
-    "//build/win:default_exe_manifest",
     "//build/config/sanitizers:deps",
+    "//build/win:default_exe_manifest",
+    "//net",
     "//third_party/boringssl",
     "//third_party/protobuf:protobuf_lite",
+    "//url",
+    ":stellite_http_client",
+  ]
+}
+
+test("stellite_unittests") {
+  sources = [
+    "bin/run_all_unittests.cc",
+    "fetcher/http_fetcher_quic_unittest.cc",
+    "server/quic_proxy_server_unittest.cc",
+    "test/stellite_test_suite.cc",
+    "test/stellite_test_suite.h",
+  ]
+
+  deps = [
+    "//base",
+    "//gin",
+    "//net",
+    "//net:test_support",
+    "//testing/gtest",
+    ":stellite_http_client",
+    ":stellite_quic_server_base",
   ]
 }

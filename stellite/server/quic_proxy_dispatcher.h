@@ -5,8 +5,8 @@
 // A server side dispatcher which dispatches a given client's data to their
 // stream.
 
-#ifndef STELLITE_SERVER_DISPATCHER_H_
-#define STELLITE_SERVER_DISPATCHER_H_
+#ifndef STELLITE_SERVER_QUIC_PROXY_DISPATCHER_H_
+#define STELLITE_SERVER_QUIC_PROXY_DISPATCHER_H_
 
 #include <vector>
 #include <memory>
@@ -36,15 +36,15 @@ class HttpRewrite;
 class QuicConfig;
 class QuicCryptoServerConfig;
 
-// net::ThreadDispatcher inherits from net::QuicDispatcher.
+// net::QuicProxyDispatcher inherits from net::QuicDispatcher.
 // Stellite is necessary for proxy server to convert QUIC requests to
 // TCP/HTTP requests. To do this, override
 // net::QuicServerSessionBase::SendResponse to backend fetching
-class NET_EXPORT ThreadDispatcher : public QuicDispatcher {
+class NET_EXPORT QuicProxyDispatcher : public QuicDispatcher {
  public:
-  ThreadDispatcher(
-      scoped_refptr<base::SingleThreadTaskRunner> network_task_runner,
+  QuicProxyDispatcher(
       const stellite::HttpRequestContextGetter::Params& fetcher_params,
+      scoped_refptr<base::SingleThreadTaskRunner> fetcher_task_runner,
       const QuicConfig& quic_config,
       const QuicCryptoServerConfig* crypto_config,
       const ServerConfig& server_config,
@@ -52,7 +52,7 @@ class NET_EXPORT ThreadDispatcher : public QuicDispatcher {
       QuicConnectionHelperInterface* helper,
       QuicAlarmFactory* alarm_factory);
 
-  ~ThreadDispatcher() override;
+  ~QuicProxyDispatcher() override;
 
   const ServerConfig& server_config() { return server_config_; }
 
@@ -77,9 +77,9 @@ class NET_EXPORT ThreadDispatcher : public QuicDispatcher {
 
   std::unique_ptr<stellite::HttpFetcher> http_fetcher_;
 
-  DISALLOW_COPY_AND_ASSIGN(ThreadDispatcher);
+  DISALLOW_COPY_AND_ASSIGN(QuicProxyDispatcher);
 };
 
 }  // namespace net
 
-#endif // #define STELLITE_SERVER_DISPATCHER_H_
+#endif // #define STELLITE_SERVER_QUIC_PROXY_DISPATCHER_H_

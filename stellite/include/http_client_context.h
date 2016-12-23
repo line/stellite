@@ -42,13 +42,16 @@ class STELLITE_EXPORT HttpClientContext {
     bool using_quic;
     bool using_http2;
     bool using_disk_cache;
+    bool using_memory_cache;
 
     bool ignore_certificate_errors;
     bool enable_http2_alternative_service_with_different_host;
     bool enable_quic_alternative_service_with_different_host;
 
+    int max_cache_size;
+
     std::string proxy_host;
-    std::vector<std::string> quic_host_whitelist;
+    std::vector<std::string> origins_to_force_quic_on;
   };
 
   explicit HttpClientContext(const Params& params);

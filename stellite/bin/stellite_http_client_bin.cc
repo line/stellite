@@ -36,9 +36,6 @@ std::string FLAGS_host = "";
 // The port to connect to.
 std::string FLAGS_port = "80";
 
-// The protocol to request
-std::string FLAG_protocol = "";
-
 // The CA cert bundle file path
 std::string FLAG_cert_bundle = "";
 
@@ -121,8 +118,7 @@ int main(int argc, char *argv[]) {
 #if defined(USE_OPENSSL_CERTS) && !defined(ANDROID)
         "--cacert=<path>             Specify the CA CertBundle\n"
 #endif
-        "--port=<port>               Specify the port to connect to\n"
-        "--protocol=quic,spdy,http   Specify the protocol to request";
+        "--port=<port>               Specify the port to connect to\n";
     std::cout << help_str;
     exit(0);
   }
@@ -133,10 +129,6 @@ int main(int argc, char *argv[]) {
 
   if (line->HasSwitch("port")) {
     FLAGS_port = line->GetSwitchValueASCII("port");
-  }
-
-  if (line->HasSwitch("protocol")) {
-    FLAG_protocol = line->GetSwitchValueASCII("protocol");
   }
 
 #if defined(USE_OPENSSL_CERTS) && !defined(ANDROID)
@@ -155,12 +147,6 @@ int main(int argc, char *argv[]) {
   stellite::HttpClientContext::Params params;
   params.using_quic = true;
   params.using_http2 = true;
-
-  if (FLAG_protocol == "quic") {
-    std::string quic_host = FLAGS_host + ":" + FLAGS_port;
-    params.quic_host_whitelist.push_back(quic_host);
-    LOG(INFO) << "Origin to force QUIC on: " << quic_host;
-  }
 
   std::unique_ptr<stellite::HttpCallback> callback(
       new stellite::HttpCallback());

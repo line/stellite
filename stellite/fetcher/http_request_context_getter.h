@@ -38,7 +38,9 @@ class HttpRequestContextGetter : public net::URLRequestContextGetter {
     ~Params();
 
     bool enable_http2;
+    bool enable_http2_alternative_service_with_different_host;
     bool enable_quic;
+    bool enable_quic_alternative_service_with_different_host;
     bool ignore_certificate_errors;
     bool quic_close_sessions_on_ip_change;
     bool quic_delay_tcp_race;
@@ -50,14 +52,22 @@ class HttpRequestContextGetter : public net::URLRequestContextGetter {
     bool sdch_enable;
     bool throttling_enable;
     bool using_disk_cache;
+    bool using_memory_cache;
     int cache_max_size;
+    int quic_idle_connection_timeout_seconds;
+    int quic_max_server_configs_stored_in_properties;
 
+    std::string accept_language;
     std::string proxy_host;
-    std::vector<std::string> quic_host_whitelist;
+    std::string quic_user_agent_id;
+    std::string user_agent;
+    std::string http_disk_cache_path;
+
+    std::vector<std::string> origins_to_force_quic_on;
   };
 
   HttpRequestContextGetter(
-      Params context_getter_params,
+      Params context_params,
       scoped_refptr<base::SingleThreadTaskRunner> network_task_runner);
 
   // Implements net::URLRequestContextGetter
@@ -66,16 +76,34 @@ class HttpRequestContextGetter : public net::URLRequestContextGetter {
   scoped_refptr<base::SingleThreadTaskRunner> GetNetworkTaskRunner()
       const override;
 
+  void set_host_resolver(std::unique_ptr<net::HostResolver> host_resolver);
+  void set_cert_verifier(std::unique_ptr<net::CertVerifier> cert_verifier);
+
  private:
   ~HttpRequestContextGetter() override;
 
-  bool LazyInit(Params params);
+  bool BuildContext(Params params);
 
-  Params context_getter_params_;
-
-  std::unique_ptr<net::URLRequestContext> url_request_context_;
-
+  Params context_params_;
   scoped_refptr<base::SingleThreadTaskRunner> network_task_runner_;
+
+  base::FilePath transport_security_persister_path_;
+  std::unique_ptr<net::HostResolver> host_resolver_;
+  std::unique_ptr<net::ChannelIDService> channel_id_service_;
+  std::unique_ptr<net::ProxyService> proxy_service_;
+  std::unique_ptr<net::NetworkDelegate> network_delegate_;
+  std::unique_ptr<net::ProxyDelegate> proxy_delegate_;
+  std::unique_ptr<net::HttpAuthHandlerFactory> http_auth_handler_factory_;
+  std::unique_ptr<net::CertVerifier> cert_verifier_;
+  std::unique_ptr<net::CTVerifier> ct_verifier_;
+  std::vector<std::unique_ptr<net::URLRequestInterceptor>>
+      url_request_interceptors_;
+  std::unique_ptr<net::HttpServerProperties> http_server_properties_;
+  std::map<std::string,
+      std::unique_ptr<net::URLRequestJobFactory::ProtocolHandler>>
+          protocol_handlers_;
+
+  std::unique_ptr<net::URLRequestContext> context_;
 
   DISALLOW_COPY_AND_ASSIGN(HttpRequestContextGetter);
 };

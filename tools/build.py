@@ -31,12 +31,10 @@ SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN = 'simple_chunked_upload_client_bin'
 STATIC_LIBRARY = 'static_library'
 STELLITE_HTTP_CLIENT = 'stellite_http_client'
 STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
-STELLITE_QUIC_SERVER = 'stellite_quic_server'
-TARGET = 'target'
-TRIDENT_HTTP_CLIENT = 'trident_http_client'
-TRIDENT_HTTP_CLIENT_BIN = 'trident_http_client_bin'
+STELLITE_QUIC_SERVER_BIN = 'stellite_quic_server_bin'
 UBUNTU = 'ubuntu'
 WINDOWS = 'windows'
+UNITTEST = 'unittest'
 
 GIT_DEPOT = 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
 
@@ -128,9 +126,11 @@ CHROMIUM_DEPENDENCY_DIRECTORIES = [
   'buildtools',
   'components/url_matcher',
   'crypto',
+  'gin',
   'net',
   'sdch',
   'testing',
+  'third_party/WebKit',
   'third_party/apple_apsl',
   'third_party/binutils',
   'third_party/boringssl',
@@ -140,42 +140,10 @@ CHROMIUM_DEPENDENCY_DIRECTORIES = [
   'third_party/drmemory',
   'third_party/icu',
   'third_party/instrumented_libraries',
+  'third_party/jinja2',
   'third_party/libxml/',
   'third_party/llvm-build',
-  'third_party/modp_b64',
-  'third_party/protobuf',
-  'third_party/pyftpdlib',
-  'third_party/pywebsocket',
-  'third_party/re2',
-  'third_party/tcmalloc',
-  'third_party/tlslite',
-  'third_party/yasm',
-  'third_party/zlib',
-  'tools',
-  'url',
-]
-
-ANDROID_DEPENDENCY_DIRECTORIES = [
-  'base',
-  'build',
-  'build_overrides',
-  'buildtools',
-  'components/url_matcher',
-  'crypto',
-  'net',
-  'sdch',
-  'testing',
-  'third_party/apple_apsl',
-  'third_party/binutils',
-  'third_party/boringssl',
-  'third_party/brotli',
-  'third_party/ced',
-  'third_party/closure_compiler',
-  'third_party/drmemory',
-  'third_party/icu',
-  'third_party/instrumented_libraries',
-  'third_party/libxml/',
-  'third_party/llvm-build',
+  'third_party/markupsafe',
   'third_party/modp_b64',
   'third_party/protobuf',
   'third_party/pyftpdlib',
@@ -188,6 +156,19 @@ ANDROID_DEPENDENCY_DIRECTORIES = [
   'tools',
   'url',
   'v8',
+]
+
+ANDROID_DEPENDENCY_DIRECTORIES = [
+  'base',
+  'build',
+  'build_overrides',
+  'buildtools',
+  'components/url_matcher',
+  'crypto',
+  'gin',
+  'net',
+  'sdch',
+  'testing',
   'third_party/WebKit',
   'third_party/accessibility_test_framework',
   'third_party/android_async_task',
@@ -201,22 +182,45 @@ ANDROID_DEPENDENCY_DIRECTORIES = [
   'third_party/android_swipe_refresh',
   'third_party/android_tools',
   'third_party/apache_velocity',
+  'third_party/apple_apsl',
   'third_party/ashmem',
+  'third_party/binutils',
+  'third_party/boringssl',
   'third_party/bouncycastle',
+  'third_party/brotli',
   'third_party/byte_buddy',
   'third_party/catapult',
+  'third_party/ced',
+  'third_party/closure_compiler',
+  'third_party/drmemory',
   'third_party/guava',
   'third_party/hamcrest',
+  'third_party/icu',
   'third_party/icu4j',
   'third_party/ijar',
+  'third_party/instrumented_libraries',
   'third_party/intellij',
   'third_party/jsr-305',
   'third_party/junit',
+  'third_party/libxml/',
+  'third_party/llvm-build',
   'third_party/mockito',
+  'third_party/modp_b64',
   'third_party/objenesis',
   'third_party/ow2_asm',
+  'third_party/protobuf',
+  'third_party/pyftpdlib',
+  'third_party/pywebsocket',
+  'third_party/re2',
   'third_party/robolectric',
   'third_party/sqlite4java',
+  'third_party/tcmalloc',
+  'third_party/tlslite',
+  'third_party/yasm',
+  'third_party/zlib',
+  'tools',
+  'url',
+  'v8',
 ]
 
 WINDOWS_DEPENDENCY_DIRECTORIES= [
@@ -226,6 +230,7 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
   'buildtools',
   'components/url_matcher',
   'crypto',
+  'gin',
   'net',
   'sdch',
   'testing',
@@ -250,6 +255,7 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
   'third_party/zlib',
   'tools',
   'url',
+  'v8',
 ]
 
 MAC_EXCLUDE_OBJECTS = [
@@ -288,14 +294,9 @@ IOS_EXCLUDE_OBJECTS = [
   'protobuf/protobuf_full/common.o',
   'protobuf/protobuf_full/coded_stream.o',
   'protobuf/protobuf_full/arenastring.o',
-
-#  'libprotobuf_full_do_not_use.a',
-#  'libprotoc_lib.a',
-#  'libprotobuf_full.a',
 ]
 
 ANDROID_EXCLUDE_OBJECTS = [
-  #'cpu_features.cpu-features.o',
 ]
 
 LINUX_EXCLUDE_OBJECTS = [
@@ -330,10 +331,8 @@ def option_parser(args):
                       default=host_platform)
 
   parser.add_argument('--target',
-                      choices=[STELLITE_QUIC_SERVER,
+                      choices=[STELLITE_QUIC_SERVER_BIN,
                                STELLITE_HTTP_CLIENT,
-                               TRIDENT_HTTP_CLIENT,
-                               TRIDENT_HTTP_CLIENT_BIN,
                                CLIENT_BINDER,
                                STELLITE_HTTP_CLIENT_BIN,
                                SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN],
@@ -344,10 +343,10 @@ def option_parser(args):
                       default=STATIC_LIBRARY)
 
   parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
-  parser.add_argument('action', choices=[CLEAN, BUILD], default=BUILD)
+  parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
   options = parser.parse_args(args)
 
-  if options.target in (STELLITE_HTTP_CLIENT, TRIDENT_HTTP_CLIENT):
+  if options.target in (STELLITE_HTTP_CLIENT):
     if not options.target_type in (STATIC_LIBRARY, SHARED_LIBRARY):
       print('invalid target type error')
       sys.exit(1)
@@ -489,11 +488,6 @@ class BuildObject(object):
     return os.path.join(self.root_path, 'stellite')
 
   @property
-  def trident_path(self):
-    """return trident_stellite code path"""
-    return os.path.join(self.root_path, 'trident')
-
-  @property
   def modified_files_path(self):
     """return modified_files path"""
     return os.path.join(self.root_path, 'modified_files')
@@ -539,12 +533,6 @@ class BuildObject(object):
   @property
   def stellite_http_client_header_files(self):
     include_path = os.path.join(self.stellite_path, 'include')
-    return map(lambda x: os.path.join(include_path, x),
-               os.listdir(include_path))
-
-  @property
-  def trident_http_client_header_files(self):
-    include_path = os.path.join(self.trident_path, 'include')
     return map(lambda x: os.path.join(include_path, x),
                os.listdir(include_path))
 
@@ -740,19 +728,11 @@ class BuildObject(object):
     command = ['ln', '-s', self.stellite_path]
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
-    trident_buildspace_path = os.path.join(self.buildspace_src_path,
-                                           'trident')
-    if os.path.exists(trident_buildspace_path):
-      os.remove(trident_buildspace_path)
-
-    command = ['ln', '-s', self.trident_path]
-    self.execute_with_error(command, cwd=self.buildspace_src_path)
-
-  def build_target(self):
+  def build_target(self, target):
     command = ['ninja']
     if self.verbose:
       command.append('-v')
-    command.extend(['-C', self.build_output_path, self.target])
+    command.extend(['-C', self.build_output_path, target])
     self.execute(command)
 
   def check_depot_tools_or_install(self):
@@ -791,6 +771,9 @@ class BuildObject(object):
     if not os.path.exists(self.build_output_path):
       return
     shutil.rmtree(self.build_output_path)
+
+  def unittest(self):
+    raise NotImplementedError()
 
 
 class AndroidBuild(BuildObject):
@@ -1071,14 +1054,11 @@ class AndroidBuild(BuildObject):
       build = AndroidBuild(self.target, self.target_type, target_arch=arch,
                            verbose=self.verbose)
       build.generate_ninja_script(gn_args=gn_context)
-      build.build_target()
+      build.build_target(self.target)
       output_list.append(build.package_target())
 
     if self.target == STELLITE_HTTP_CLIENT:
       output_list.extend(self.stellite_http_client_header_files)
-
-    if self.target == TRIDENT_HTTP_CLIENT:
-      output_list.extend(self.trident_http_client_header_files)
 
     output_list.extend(self.chromium_java_lib_deps)
 
@@ -1092,6 +1072,9 @@ class AndroidBuild(BuildObject):
         continue
       shutil.rmtree(build.build_output_path)
 
+  def unittest(self):
+    pass
+
 
 class MacBuild(BuildObject):
   """mac build"""
@@ -1101,7 +1084,7 @@ class MacBuild(BuildObject):
 
   def build(self):
     self.generate_ninja_script(GN_ARGS_MAC)
-    self.build_target()
+    self.build_target(self.target)
 
     if self.target_type == EXECUTABLE:
       return [os.path.join(self.build_output_path, self.target)]
@@ -1111,9 +1094,6 @@ class MacBuild(BuildObject):
 
     if self.target == STELLITE_HTTP_CLIENT:
       output_list.extend(self.stellite_http_client_header_files)
-
-    if self.target == TRIDENT_HTTP_CLIENT:
-      output_list.extend(self.trident_http_client_header_files)
 
     return output_list
 
@@ -1179,6 +1159,19 @@ class MacBuild(BuildObject):
     self.execute(command)
     return library_path
 
+  def unittest(self):
+    gn_arguments = '\n'.join([GN_ARGS_MAC, 'is_asan = true'])
+    self.generate_ninja_script(gn_arguments)
+    self.build_target('stellite_unittests')
+
+    unittest_command = [
+      os.path.join(self.build_output_path, 'stellite_unittests'),
+      '--single-process-tests',
+    ]
+    if self.verbose:
+      unittest_command.append('--v=3')
+    self.execute_with_error(unittest_command)
+
 
 class IOSBuild(BuildObject):
   """ios build"""
@@ -1220,7 +1213,7 @@ class IOSBuild(BuildObject):
                        verbose=self.verbose)
       build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(arch),
                                   gn_options=['--check'])
-      build.build_target()
+      build.build_target(self.target)
       lib_list.append(build.package_target())
 
     output_list = []
@@ -1228,8 +1221,6 @@ class IOSBuild(BuildObject):
 
     if self.target == STELLITE_HTTP_CLIENT:
       output_list.extend(self.stellite_http_client_header_files)
-    if self.target == TRIDENT_HTTP_CLIENT:
-      output_list.extend(self.trident_http_client_header_files)
 
     return output_list
 
@@ -1328,6 +1319,9 @@ class IOSBuild(BuildObject):
     self.execute(command)
     return fat_filepath
 
+  def unittest(self):
+    pass
+
 
 class LinuxBuild(BuildObject):
   """linux build"""
@@ -1337,7 +1331,7 @@ class LinuxBuild(BuildObject):
 
   def build(self):
     self.generate_ninja_script(GN_ARGS_LINUX)
-    self.build_target()
+    self.build_target(self.target)
 
     if self.target_type == EXECUTABLE:
       return [os.path.join(self.build_output_path, self.target)]
@@ -1347,9 +1341,6 @@ class LinuxBuild(BuildObject):
 
     if self.target == STELLITE_HTTP_CLIENT:
       output_list.extend(self.stellite_http_client_header_files)
-
-    if self.target == TRIDENT_HTTP_CLIENT:
-      output_list.extend(self.trident_http_client_header_files)
 
     return output_list
 
@@ -1406,6 +1397,9 @@ class LinuxBuild(BuildObject):
 
   def fetch_toolchain(self):
     return True
+
+  def unittest(self):
+    pass
 
 
 class WindowsBuild(BuildObject):
@@ -1514,12 +1508,6 @@ class WindowsBuild(BuildObject):
       shutil.rmtree(stellite_buildspace_path)
     copy_tree(self.stellite_path, stellite_buildspace_path)
 
-    trident_buildspace_path  = os.path.join(self.buildspace_src_path,
-                                            'trident')
-    if os.path.exists(trident_buildspace_path):
-      shutil.rmtree(trident_buildspace_path)
-    copy_tree(self.trident_path, trident_buildspace_path)
-
   def package_target(self):
     output_files = []
     if self.target_type == STATIC_LIBRARY:
@@ -1529,8 +1517,6 @@ class WindowsBuild(BuildObject):
 
     if self.target == STELLITE_HTTP_CLIENT:
       output_files.extend(self.stellite_http_client_header_files)
-    if self.target == TRIDENT_HTTP_CLIENT:
-      output_files.extend(self.trident_http_client_header_files)
 
     return output_files
 
@@ -1538,8 +1524,11 @@ class WindowsBuild(BuildObject):
     is_component = 'false' if self.target_type == STATIC_LIBRARY else 'true'
     gn_args = GN_ARGS_WINDOWS.format(is_component)
     self.generate_ninja_script(gn_args=gn_args)
-    self.build_target()
+    self.build_target(self.target)
     return self.package_target()
+
+  def unittest(self):
+    pass
 
 
 def main(args):
@@ -1568,6 +1557,11 @@ def main(args):
     for output_file_path in output_files:
       shutil.copy(output_file_path, build.output_path)
     return 0
+
+  if options.action == UNITTEST:
+    build.unittest()
+    return 0
+
   return 1
 
 

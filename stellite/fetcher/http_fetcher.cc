@@ -41,24 +41,31 @@ int HttpFetcher::Request(const HttpRequest& http_request,
                          int64_t timeout,
                          base::WeakPtr<HttpFetcherTask::Visitor> d) {
   int request_id = ++last_request_id_;
-  network_task_runner_->PostTask(
-      FROM_HERE,
-      base::Bind(&HttpFetcher::StartRequest,
-                 weak_factory_.GetWeakPtr(),
-                 request_id, http_request, timeout, d));
+  if (network_task_runner_->RunsTasksOnCurrentThread()) {
+    StartRequest(request_id, http_request, timeout, d);
+  } else {
+    network_task_runner_->PostTask(
+        FROM_HERE,
+        base::Bind(&HttpFetcher::StartRequest,
+                   weak_factory_.GetWeakPtr(),
+                   request_id, http_request, timeout, d));
+  }
   return request_id;
 
 }
 
-
 bool HttpFetcher::AppendChunkToUpload(int request_id,
                                       const std::string& data,
                                       bool is_last_chunk) {
-  network_task_runner_->PostTask(
-      FROM_HERE,
-      base::Bind(&HttpFetcher::StartAppendChunkToUpload,
-                 weak_factory_.GetWeakPtr(),
-                 request_id, data, is_last_chunk));
+  if (network_task_runner_->RunsTasksOnCurrentThread()) {
+    StartAppendChunkToUpload(request_id, data, is_last_chunk);
+  } else {
+    network_task_runner_->PostTask(
+        FROM_HERE,
+        base::Bind(&HttpFetcher::StartAppendChunkToUpload,
+                   weak_factory_.GetWeakPtr(),
+                   request_id, data, is_last_chunk));
+  }
   return true;
 }
 
@@ -73,8 +80,7 @@ void HttpFetcher::StartRequest(int request_id,
     return;
   }
 
-  HttpFetcherTask* task =
-      new HttpFetcherTask(this, request_id, d);
+  HttpFetcherTask* task = new HttpFetcherTask(this, request_id, d);
   task_map_.insert(std::make_pair(request_id, base::WrapUnique(task)));
 
   task->Start(http_request, timeout);

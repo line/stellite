@@ -19,11 +19,17 @@
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/threading/thread.h"
-#include "stellite/server/quic_thread_server.h"
-#include "stellite/server/server_config.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
-#include "net/quic/crypto/proof_source_chromium.h"
+#include "net/quic/chromium/crypto/proof_source_chromium.h"
+#include "net/quic/chromium/quic_chromium_alarm_factory.h"
+#include "net/quic/chromium/quic_chromium_connection_helper.h"
+#include "net/quic/core/crypto/quic_crypto_server_config.h"
+#include "net/quic/core/quic_protocol.h"
+#include "stellite/fetcher/http_request_context_getter.h"
+#include "stellite/server/quic_proxy_dispatcher.h"
+#include "stellite/server/quic_proxy_server.h"
+#include "stellite/server/server_config.h"
 
 QuicMockServer::QuicMockServer()
   : proxy_timeout_(0) {
@@ -42,31 +48,55 @@ bool QuicMockServer::Start(uint16_t port) {
     server_config_->proxy_timeout(proxy_timeout_);
   }
 
+  stellite::HttpRequestContextGetter::Params fetcher_params;
+  fetcher_params.enable_http2 = true;
+  fetcher_params.enable_quic = true;
+  fetcher_params.ignore_certificate_errors = false;
+  fetcher_params.using_disk_cache = false;
+
+  // setting QuicConfig
+  quic_config_.reset(new net::QuicConfig());
+
+  // setting CryptoConfig
   CHECK(!certfile_.empty() && !keyfile_.empty())
       << "certfile or keyfile is required";
 
-  net::ProofSourceChromium* proof_source = new net::ProofSourceChromium();
+  std::unique_ptr<net::ProofSourceChromium> proof_source(
+      new net::ProofSourceChromium());
   CHECK(proof_source->Initialize(certfile_, keyfile_, base::FilePath()))
       << "Failed to initialize the certificate";
 
-  net::QuicConfig quic_config;
-  quic_server_.reset(new net::QuicThreadServer(quic_config,
-                                               *server_config_.get(),
-                                               net::QuicSupportedVersions(),
-                                               proof_source));
+  crypto_config_.reset(
+      new net::QuicCryptoServerConfig("secret",
+                                      net::QuicRandom::GetInstance(),
+                                      std::move(proof_source)));
 
-  std::vector<net::QuicServerConfigProtobuf*> quic_server_configs;
-  CHECK(quic_server_->Initialize(quic_server_configs));
+  server_config_.reset(new net::ServerConfig());
 
-  net::IPAddress ip;
-  CHECK(ip.AssignFromIPLiteral("::"));
-  quic_server_->Start(/* worker_size */ 1, net::IPEndPoint(ip, port));
+  version_manager_.reset(new net::QuicVersionManager(
+          net::AllSupportedVersions()));
+
+  connection_helper_.reset(
+      new net::QuicChromiumConnectionHelper(&quic_clock_,
+                                            net::QuicRandom::GetInstance()));
+
+  alarm_factory_.reset(new net::QuicChromiumAlarmFactory(
+          base::ThreadTaskRunnerHandle::Get().get(),
+          &quic_clock_));
+
+  quic_dispatcher_.reset(new net::QuicProxyDispatcher(
+          fetcher_params,
+          *quic_config_,
+          crypto_config_.get(),
+          *server_config_,
+          version_manager_.get(),
+          connection_helper_.get(),
+          alarm_factory_.get()));
 
   return true;
 }
 
 bool QuicMockServer::Shutdown() {
-  quic_server_->Shutdown();
   return true;
 }
 

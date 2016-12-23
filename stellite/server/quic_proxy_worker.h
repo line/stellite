@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef STELLITE_THREAD_QUIC_DISPATCH_WORKER_H_
-#define STELLITE_THREAD_QUIC_DISPATCH_WORKER_H_
+#ifndef STELLITE_SERVER_QUIC_PROXY_WORKER_H_
+#define STELLITE_SERVER_QUIC_PROXY_WORKER_H_
 
 #include <memory>
 
@@ -36,38 +36,38 @@ class EphemeralKeySource;
 class IOBufferWithSize;
 class QuicChromiumAlarmFactory;
 class QuicChromiumConnectionHelper;
+class QuicProxyDispatcher;
 class QuicServerConfig;
 class QuicServerConfigProtobuf;
 class QuicUDPServerSocket;
-class ThreadDispatcher;
 
 namespace test {
-class ThreadWorkerPeer;
+class QuicProxyWorkerPeer;
 }
 
-// net::ThreadWorker has two thread and UDP server socket.
+// net::QuicProxyWorker has two thread and UDP server socket.
 // One is QUIC dispatching thread, last one is backend fetching thread.
-// The other role of net::ThreadWorker is to read datagram and hand-over
+// The other role of net::QuicProxyWorker is to read datagram and hand-over
 // datagram to quic_dispatcher.
-class NET_EXPORT ThreadWorker {
+class NET_EXPORT QuicProxyWorker {
  public:
-  ThreadWorker(
+  QuicProxyWorker(
+      scoped_refptr<base::SingleThreadTaskRunner> dispatch_task_runner,
+      scoped_refptr<base::SingleThreadTaskRunner> http_fetch_task_runner,
       const IPEndPoint& bind_address,
       const QuicConfig& quic_config,
       const ServerConfig& server_config,
       const QuicVersionVector& supported_versions,
       std::unique_ptr<ProofSource> proof_source);
 
-  virtual ~ThreadWorker();
+  virtual ~QuicProxyWorker();
 
+  bool Initialize();
   bool Initialize(const std::vector<QuicServerConfigProtobuf*>& protobufs);
-
   void SetStrikeRegisterNoStartupPeriod();
-
   void SetEphemeralKeySource(EphemeralKeySource* key_source);
 
   void Start();
-
   void Stop();
 
  protected:
@@ -83,17 +83,19 @@ class NET_EXPORT ThreadWorker {
     return server_config_;
   }
 
-  scoped_refptr<base::SingleThreadTaskRunner> dispatch_task_runner();
+  scoped_refptr<base::SingleThreadTaskRunner> dispatch_task_runner() {
+    return dispatch_task_runner_;
+  }
 
-  scoped_refptr<base::SingleThreadTaskRunner> fetch_task_runner();
+  scoped_refptr<base::SingleThreadTaskRunner> http_fetch_task_runner() {
+    return http_fetch_task_runner_;
+  }
 
  private:
-  friend class test::ThreadWorkerPeer;
+  friend class test::QuicProxyWorkerPeer;
 
   void StartOnBackground();
-
   void StartReading();
-
   void StopReading();
 
   void OnReadComplete(int result);
@@ -101,16 +103,16 @@ class NET_EXPORT ThreadWorker {
   const int dispatch_continuity_;
 
   // Worker thread
-  std::unique_ptr<base::Thread> dispatch_thread_;
+  scoped_refptr<base::SingleThreadTaskRunner> dispatch_task_runner_;
 
   // Fetcher thread
-  std::unique_ptr<base::Thread> fetch_thread_;
+  scoped_refptr<base::SingleThreadTaskRunner> http_fetch_task_runner_;
 
   // Used by the helper_ to time alarms.
   QuicClock clock_;
 
   // Accepts data from the framer and demuxes clients to sessions.
-  std::unique_ptr<ThreadDispatcher> dispatcher_;
+  std::unique_ptr<QuicProxyDispatcher> dispatcher_;
 
   // Used to manage the message loop. Owned by dispatcher
   QuicChromiumConnectionHelper* helper_;
@@ -153,11 +155,11 @@ class NET_EXPORT ThreadWorker {
   // The source address of the current read.
   IPEndPoint client_address_;
 
-  base::WeakPtrFactory<ThreadWorker> weak_factory_;
+  base::WeakPtrFactory<QuicProxyWorker> weak_factory_;
 
-  DISALLOW_COPY_AND_ASSIGN(ThreadWorker);
+  DISALLOW_COPY_AND_ASSIGN(QuicProxyWorker);
 };
 
 } // namespace net
 
-#endif // STELLITE_THREAD_QUIC_DISPATCH_WORKER_H_
+#endif // STELLITE_SERVER_QUIC_PROXY_WORKER_H_

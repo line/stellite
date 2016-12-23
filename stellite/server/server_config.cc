@@ -42,6 +42,7 @@ const char* kConfig = "config";
 const char* kDaemon = "daemon";
 const char* kDefaultBindAddress = "::";
 const char* kDispatchContinuity = "dispatch_continuity";
+const char* kFileLogging = "file_logging";
 const char* kKeyfile = "keyfile";
 const char* kLogDir = "log_dir";
 const char* kLogging = "logging";
@@ -58,6 +59,7 @@ ServerConfig::ServerConfig()
   : daemon_(false),
     stop_(false),
     logging_(false),
+    file_logging_(false),
     worker_count_(1),
     dispatch_continuity_(kDefaultDispatchContinuity),
     send_buffer_size_(kDefaultSendBufferSize),
@@ -96,7 +98,8 @@ void ServerConfig::PrintHelpMessages() {
     "--certfile=<cert_file_path>    Specify the SSL certificate file path\n"
     "--bind_address=<ip>            Specify IP address to bind UDP socket\n"
     "--log_dir=<log_dir>            Specify the logging directory\n"
-    "--logging                      Turn on file-based logging\n"
+    "--logging                      Turn on stdout logging\n"
+    "--file_logging                 Turn on file base logging\n"
     "                               (It is turned off by default)\n";
   LOG(ERROR) << help_message;
 }

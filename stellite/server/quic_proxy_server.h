@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef STELLITE_THREAD_QUIC_SERVER_H_
-#define STELLITE_THREAD_QUIC_SERVER_H_
+#ifndef STELLITE_SERVER_QUIC_PROXY_SERVER_H_
+#define STELLITE_SERVER_QUIC_PROXY_SERVER_H_
 
 #include <map>
 #include <memory>
 #include <vector>
 
+#include "base/threading/platform_thread.h"
 #include "net/base/ip_endpoint.h"
 #include "net/quic/core/quic_clock.h"
 #include "net/quic/core/quic_config.h"
+#include "stellite/include/stellite_export.h"
 #include "stellite/server/server_config.h"
-#include "stellite/server/thread_worker.h"
 
 namespace base {
 class Thread;
@@ -32,13 +33,14 @@ class Thread;
 namespace net {
 class QuicServerConfigProtobuf;
 class SharedSessionManager;
+class QuicProxyWorker;
 
-class QuicThreadServer {
+class STELLITE_EXPORT QuicProxyServer {
  public:
-  QuicThreadServer(const QuicConfig& quic_config,
-                   const ServerConfig& server_config,
-                   const QuicVersionVector& supported_version);
-  virtual ~QuicThreadServer();
+  QuicProxyServer(const QuicConfig& quic_config,
+                  const ServerConfig& server_config,
+                  const QuicVersionVector& supported_version);
+  virtual ~QuicProxyServer();
 
   bool Initialize();
 
@@ -49,7 +51,8 @@ class QuicThreadServer {
 
  private:
   typedef std::map<QuicConnectionId, base::PlatformThreadId> ConnectionMap;
-  typedef std::vector<std::unique_ptr<ThreadWorker>> WorkerList;
+  typedef std::vector<std::unique_ptr<QuicProxyWorker>> WorkerList;
+  typedef std::vector<std::unique_ptr<base::Thread>> ThreadVector;
 
   // QUIC clock
   QuicClock clock_;
@@ -69,9 +72,15 @@ class QuicThreadServer {
   // Connection container
   ConnectionMap connection_map_;
 
-  DISALLOW_COPY_AND_ASSIGN(QuicThreadServer);
+  // threads for worker
+  ThreadVector dispatch_thread_list_;
+
+  // threads for fetcher
+  ThreadVector fetch_thread_list_;
+
+  DISALLOW_COPY_AND_ASSIGN(QuicProxyServer);
 };
 
 } // namespace net
 
-#endif // STELLITE_THREAD_QUIC_SERVER_H_
+#endif // STELLITE_SERVER_QUIC_PROXY_SERVER_H_

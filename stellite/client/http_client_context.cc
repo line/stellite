@@ -17,11 +17,12 @@
 #include <memory>
 #include <map>
 
+#include "base/at_exit.h"
 #include "base/memory/ref_counted.h"
 #include "base/threading/thread.h"
-#include "stellite/fetcher/http_request_context_getter.h"
-#include "stellite/fetcher/http_fetcher.h"
 #include "stellite/client/http_client_impl.h"
+#include "stellite/fetcher/http_fetcher.h"
+#include "stellite/fetcher/http_request_context_getter.h"
 
 #if defined(ANDROID)
 #include "base/android/base_jni_registrar.h"
@@ -43,7 +44,6 @@ class HttpClientContext::ContextImpl {
 
   bool Init();
   bool Teardown();
-
   void CancelAll();
 
   HttpClient* CreateHttpClient(HttpResponseDelegate* response_delegate);
@@ -57,6 +57,8 @@ class HttpClientContext::ContextImpl {
 
   const Params context_params_;
 
+  static base::AtExitManager s_at_exit_manager_;
+
   // all HTTP request are working on network thread
   std::unique_ptr<base::Thread> network_thread_;
 
@@ -67,6 +69,8 @@ class HttpClientContext::ContextImpl {
 
   DISALLOW_COPY_AND_ASSIGN(ContextImpl);
 };
+
+base::AtExitManager HttpClientContext::ContextImpl::s_at_exit_manager_;
 
 HttpClientContext::ContextImpl::ContextImpl(const Params& context_params)
     : context_params_(context_params) {
@@ -95,10 +99,6 @@ bool HttpClientContext::ContextImpl::Init() {
   params.cache_max_size = 0;
   params.sdch_enable = true;
   params.throttling_enable = true;
-  params.quic_host_whitelist.insert(
-      params.quic_host_whitelist.end(),
-      context_params_.quic_host_whitelist.begin(),
-      context_params_.quic_host_whitelist.end());
 
   http_request_context_getter_ = new HttpRequestContextGetter(
       params, network_thread_->task_runner());

@@ -1,4 +1,3 @@
-//
 // Copyright 2016 LINE Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "trident_stellite/trident_base.h"
+#include "base/callback.h"
+#include "base/test/launcher/unit_test_launcher.h"
+#include "stellite/test/stellite_test_suite.h"
 
-#include "base/command_line.h"
-
-namespace trident {
-
-TridentBase::TridentBase() {}
-
-TridentBase::~TridentBase() {}
-
-void TridentBase::Initialize(int argc, char *argv[]) {
-  base::CommandLine::Init(argc, argv);
+int main(int argc, char** argv) {
+  StelliteTestSuite test_suite(argc, argv);
+  return base::LaunchUnitTests(argc, argv,
+                               base::Bind(&StelliteTestSuite::Run,
+                                          base::Unretained(&test_suite)));
 }
-
-}  // namespace trident

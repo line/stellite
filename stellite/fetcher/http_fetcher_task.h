@@ -61,7 +61,6 @@ class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
 
   // Fetch URL request
   void Start(const HttpRequest& http_request, int64_t timeout_msec);
-
   void Stop();
 
   // Implementation for net::HttpFetcherDelegate

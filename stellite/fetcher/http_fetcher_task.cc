@@ -112,15 +112,25 @@ void HttpFetcherTask::OnFetchComplete(
     url_fetch_timeout_timer_->Stop();
   }
 
-  const net::URLRequestStatus& status = source->GetStatus();
-  if (status.status() == net::URLRequestStatus::Status::FAILED) {
-    LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
-        << source->GetURL();
-    LOG(ERROR) << source->GetResponseCode();
-  }
+  if (source) {
+    const net::URLRequestStatus& status = source->GetStatus();
+    if (status.status() == net::URLRequestStatus::Status::FAILED) {
+      LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
+          << source->GetURL();
+      LOG(ERROR) << source->GetResponseCode();
 
-  if (visitor_.get()) {
-    visitor_->OnTaskComplete(request_id_, source, response_info);
+      if (visitor_.get()) {
+        visitor_->OnTaskError(request_id_, source, status.error());
+      }
+    } else {
+      if (visitor_.get()) {
+        visitor_->OnTaskComplete(request_id_, source, response_info);
+      }
+    }
+  } else {
+    if (visitor_.get()) {
+      visitor_->OnTaskComplete(request_id_, nullptr, response_info);
+    }
   }
 
   http_fetcher_->OnTaskComplete(request_id_);
