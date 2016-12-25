@@ -61,7 +61,7 @@ class HttpRequestContextGetter : public net::URLRequestContextGetter {
     std::string proxy_host;
     std::string quic_user_agent_id;
     std::string user_agent;
-    std::string http_disk_cache_path;
+    std::string disk_cache_path;
 
     std::vector<std::string> origins_to_force_quic_on;
   };

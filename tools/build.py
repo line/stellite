@@ -346,6 +346,10 @@ def option_parser(args):
   parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
   options = parser.parse_args(args)
 
+  if options.target in (STELLITE_QUIC_SERVER_BIN, STELLITE_HTTP_CLIENT_BIN,
+                        SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN):
+    options.target_type = EXECUTABLE
+
   if options.target in (STELLITE_HTTP_CLIENT):
     if not options.target_type in (STATIC_LIBRARY, SHARED_LIBRARY):
       print('invalid target type error')

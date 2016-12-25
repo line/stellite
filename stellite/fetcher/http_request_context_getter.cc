@@ -135,7 +135,7 @@ HttpRequestContextGetter::Params::Params(const Params& other)
    proxy_host(other.proxy_host),
    quic_user_agent_id(other.quic_user_agent_id),
    user_agent(other.user_agent),
-   http_disk_cache_path(other.http_disk_cache_path),
+   disk_cache_path(other.disk_cache_path),
    origins_to_force_quic_on(other.origins_to_force_quic_on) {
 }
 
@@ -300,15 +300,15 @@ bool HttpRequestContextGetter::BuildContext(Params params) {
   storage->set_http_network_session(
       base::MakeUnique<net::HttpNetworkSession>(network_session_params));
 
-  if (params.using_disk_cache || params.using_memory_cache) {
-    CHECK(params.http_disk_cache_path.size())
-        << "http_disk_cache_path is empty error";
+  if (params.cache_max_size > 0) {
+    CHECK(params.using_disk_cache ^ params.using_memory_cache)
+        << "disk cache and memory cache option must exclusive";
 
     std::unique_ptr<net::HttpCache::BackendFactory> cache_backend;
     if (params.using_disk_cache) {
       cache_backend.reset(new net::HttpCache::DefaultBackend(
               net::DISK_CACHE, net::CACHE_BACKEND_DEFAULT,
-              base::FilePath(params.http_disk_cache_path),
+              base::FilePath(params.disk_cache_path),
               params.cache_max_size, network_task_runner_));
     } else {
       cache_backend = net::HttpCache::DefaultBackend::InMemory(
