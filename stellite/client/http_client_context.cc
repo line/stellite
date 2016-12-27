@@ -75,6 +75,8 @@ HttpClientContext::Params::Params(const Params& other) = default;
 
 HttpClientContext::Params::~Params() {}
 
+base::AtExitManager g_exit_manager;
+
 class HttpClientContext::HttpClientContextImpl {
  public:
   HttpClientContextImpl(const Params& context_params)

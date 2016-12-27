@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  base::AtExitManager g_exit_manager;
+//  base::AtExitManager g_exit_manager;
 
   stellite::HttpClientContext::Params params;
   params.using_spdy = true;
