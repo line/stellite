@@ -78,6 +78,7 @@ struct STELLITE_EXPORT HttpResponse {
   int response_code;
   long long content_length;
 
+  std::string url;
   std::string status_text;
   std::string mime_type;
   std::string charset;
@@ -89,6 +90,7 @@ struct STELLITE_EXPORT HttpResponse {
   bool was_cached;
   bool was_fetched_via_proxy;
   bool was_fetched_via_spdy;
+  bool was_fetched_via_quic;
 
   time_t request_time;
   time_t response_time;

@@ -18,7 +18,6 @@
 #include "base/strings/string_number_conversions.h"
 #include "components/url_matcher/string_pattern.h"
 #include "components/url_matcher/url_matcher.h"
-#include "stellite/logging/logging.h"
 #include "third_party/re2/src/re2/re2.h"
 
 namespace net {
@@ -67,7 +66,7 @@ bool HttpRewrite::Rewrite(const std::string& origin_path,
   re2::RE2 re(pattern_list_[pattern_id]->pattern());
   int group_count = re.NumberOfCapturingGroups();
   if (group_count >= kMaxGroupCount) {
-    FLOG(ERROR) << "Overflow in rewriting matcher group count: " << group_count;
+    LOG(ERROR) << "Overflow in rewriting matcher group count: " << group_count;
     return false;
   }
 

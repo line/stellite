@@ -10,10 +10,6 @@
 
 group("root") {
   deps = [
-    "//base:base",
-    "//net:net",
-    "//stellite:stellite_quic_server",
-    "//stellite:stellite_http_client",
-    "//trident:trident_http_client",
+    "//stellite:stellite",
   ]
 }

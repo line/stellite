@@ -19,14 +19,20 @@
 
 #include "base/files/file_path.h"
 #include "base/synchronization/waitable_event.h"
+#include "net/quic/core/quic_clock.h"
 
 namespace base {
 class Thread;
 } // namespace base
 
 namespace net {
+class QuicAlarmFactory;
+class QuicConfig;
+class QuicConnectionHelperInterface;
+class QuicCryptoServerConfig;
 class QuicProofSource;
-class QuicThreadServer;
+class QuicProxyWorker;
+class QuicVersionManager;
 class ServerConfig;
 } // namespace net
 
@@ -49,15 +55,22 @@ class QuicMockServer {
   bool SetProxyTimeout(uint32_t proxy_timeout);
 
  private:
-  std::unique_ptr<net::QuicThreadServer> quic_server_;
-
-  std::unique_ptr<net::ServerConfig> server_config_;
-
   base::FilePath keyfile_;
   base::FilePath certfile_;
 
   std::string proxy_pass_;
   uint32_t proxy_timeout_;
+
+  net::QuicClock quic_clock_;
+
+  std::unique_ptr<net::QuicConfig> quic_config_;
+  std::unique_ptr<net::QuicCryptoServerConfig> crypto_config_;
+  std::unique_ptr<net::ServerConfig> server_config_;
+  std::unique_ptr<net::QuicVersionManager> version_manager_;
+  std::unique_ptr<net::QuicConnectionHelperInterface> connection_helper_;
+  std::unique_ptr<net::QuicAlarmFactory> alarm_factory_;
+
+  std::unique_ptr<net::QuicProxyWorker> proxy_worker_;
 
   DISALLOW_COPY_AND_ASSIGN(QuicMockServer);
 };

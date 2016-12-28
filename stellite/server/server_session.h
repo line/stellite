@@ -21,8 +21,11 @@
 #include "stellite/stats/server_stats.h"
 #include "net/tools/quic/quic_simple_server_session.h"
 
-namespace net {
+namespace stellite {
 class HttpFetcher;
+}
+
+namespace net {
 class HttpRewrite;
 class QuicCompressedCertsCache;
 class QuicConfig;
@@ -40,7 +43,7 @@ class NET_EXPORT ServerSession : public QuicSimpleServerSession {
       QuicConnection* connection,
       QuicServerSessionBase::Visitor* visitor,
       QuicCryptoServerStream::Helper* helper,
-      HttpFetcher* http_fetcher,
+      stellite::HttpFetcher* http_fetcher,
       const HttpRewrite* http_rewrite,
       QuicCompressedCertsCache* compressed_certs_cache);
   ~ServerSession() override;
@@ -58,7 +61,7 @@ class NET_EXPORT ServerSession : public QuicSimpleServerSession {
  private:
   // Server configuration for HTTP reverse proxy
   const ServerConfig& server_config_;
-  HttpFetcher* http_fetcher_; /* not owned */
+  stellite::HttpFetcher* http_fetcher_; /* not owned */
   const HttpRewrite* http_rewrite_; /* not owned */
   std::unique_ptr<ServerStatsRecorder> http_stats_recorder_;
 

@@ -12,15 +12,18 @@
 #include "net/url_request/url_fetcher_factory.h"
 #include "net/url_request/url_fetcher_response_writer.h"
 #include "stellite/fetcher/http_fetcher_core.h"
+#include "stellite/fetcher/http_fetcher_delegate.h"
 
-namespace net {
+namespace stellite {
 
 static URLFetcherFactory* g_factory = NULL;
 
 HttpFetcherImpl::HttpFetcherImpl(const GURL& url,
-                               RequestType request_type,
-                               URLFetcherDelegate* d)
-    : core_(new HttpFetcherCore(this, url, request_type, d)) {
+                                 RequestType request_type,
+                                 HttpFetcherDelegate* d,
+                                 bool stream_response)
+    : core_(new net::HttpFetcherCore(this, url, request_type, d,
+                                     stream_response)) {
 }
 
 HttpFetcherImpl::~HttpFetcherImpl() {
@@ -28,7 +31,7 @@ HttpFetcherImpl::~HttpFetcherImpl() {
 }
 
 void HttpFetcherImpl::SetUploadData(const std::string& upload_content_type,
-                                   const std::string& upload_content) {
+                                    const std::string& upload_content) {
   core_->SetUploadData(upload_content_type, upload_content);
 }
 
@@ -66,7 +69,7 @@ void HttpFetcherImpl::SetReferrer(const std::string& referrer) {
 }
 
 void HttpFetcherImpl::SetReferrerPolicy(
-    URLRequest::ReferrerPolicy referrer_policy) {
+    net::URLRequest::ReferrerPolicy referrer_policy) {
   core_->SetReferrerPolicy(referrer_policy);
 }
 
@@ -88,7 +91,7 @@ void HttpFetcherImpl::AddExtraRequestHeader(const std::string& header_line) {
 }
 
 void HttpFetcherImpl::SetRequestContext(
-    URLRequestContextGetter* request_context_getter) {
+    net::URLRequestContextGetter* request_context_getter) {
   core_->SetRequestContext(request_context_getter);
 }
 
@@ -118,7 +121,6 @@ int HttpFetcherImpl::GetMaxRetriesOn5xx() const {
   return core_->GetMaxRetriesOn5xx();
 }
 
-
 base::TimeDelta HttpFetcherImpl::GetBackoffDelay() const {
   return core_->GetBackoffDelay();
 }
@@ -139,15 +141,15 @@ void HttpFetcherImpl::SaveResponseToTemporaryFile(
 }
 
 void HttpFetcherImpl::SaveResponseWithWriter(
-    std::unique_ptr<URLFetcherResponseWriter> response_writer) {
+    std::unique_ptr<net::URLFetcherResponseWriter> response_writer) {
   core_->SaveResponseWithWriter(std::move(response_writer));
 }
 
-HttpResponseHeaders* HttpFetcherImpl::GetResponseHeaders() const {
+net::HttpResponseHeaders* HttpFetcherImpl::GetResponseHeaders() const {
   return core_->GetResponseHeaders();
 }
 
-HostPortPair HttpFetcherImpl::GetSocketAddress() const {
+net::HostPortPair HttpFetcherImpl::GetSocketAddress() const {
   return core_->GetSocketAddress();
 }
 
@@ -171,6 +173,10 @@ void HttpFetcherImpl::Start() {
   core_->Start();
 }
 
+void HttpFetcherImpl::Stop() {
+  core_->Stop();
+}
+
 const GURL& HttpFetcherImpl::GetOriginalURL() const {
   return core_->GetOriginalURL();
 }
@@ -179,7 +185,7 @@ const GURL& HttpFetcherImpl::GetURL() const {
   return core_->GetURL();
 }
 
-const URLRequestStatus& HttpFetcherImpl::GetStatus() const {
+const net::URLRequestStatus& HttpFetcherImpl::GetStatus() const {
   return core_->GetStatus();
 }
 
@@ -204,20 +210,20 @@ bool HttpFetcherImpl::GetResponseAsFilePath(
 
 // static
 void HttpFetcherImpl::CancelAll() {
-  HttpFetcherCore::CancelAll();
+  net::HttpFetcherCore::CancelAll();
 }
 
 // static
 void HttpFetcherImpl::SetIgnoreCertificateRequests(bool ignored) {
-  HttpFetcherCore::SetIgnoreCertificateRequests(ignored);
+  net::HttpFetcherCore::SetIgnoreCertificateRequests(ignored);
 }
 
 // static
 int HttpFetcherImpl::GetNumFetcherCores() {
-  return HttpFetcherCore::GetNumFetcherCores();
+  return net::HttpFetcherCore::GetNumFetcherCores();
 }
 
-URLFetcherDelegate* HttpFetcherImpl::delegate() const {
+HttpFetcherDelegate* HttpFetcherImpl::delegate() const {
   return core_->delegate();
 }
 

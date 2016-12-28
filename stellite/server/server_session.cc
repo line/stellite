@@ -29,7 +29,7 @@ ServerSession::ServerSession(
     QuicConnection* connection,
     QuicServerSessionBase::Visitor* visitor,
     QuicCryptoServerStream::Helper* helper,
-    HttpFetcher* http_fetcher,
+    stellite::HttpFetcher* http_fetcher,
     const HttpRewrite* http_rewrite,
     QuicCompressedCertsCache* compressed_certs_cache)
     : QuicSimpleServerSession(quic_config,
