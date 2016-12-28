@@ -5,7 +5,6 @@
 #include <iostream>
 #include <memory>
 
-#include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
