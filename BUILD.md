@@ -9,7 +9,7 @@ Target platform: Android, iOS, Darwin, Linux
 * Docker Toolbox 1.11.1+ (for Android)
 * VirtualBox (for Docker Toolbox)
 
-##### Linux (Ubuntu)
+##### Linux (Ubuntu 14.04 LTS)
 Target platform: Android, Linux
 * Python 2.7
 * Git
