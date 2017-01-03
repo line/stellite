@@ -195,22 +195,24 @@ component("stellite_client_binder") {
   ]
 }
 
-test("stellite_unittests") {
-  sources = [
-    "bin/run_all_unittests.cc",
-    "fetcher/http_fetcher_quic_unittest.cc",
-    "server/quic_proxy_server_unittest.cc",
-    "test/stellite_test_suite.cc",
-    "test/stellite_test_suite.h",
-  ]
+if (!is_ios && !is_android) {
+  test("stellite_unittests") {
+    sources = [
+      "bin/run_all_unittests.cc",
+      "fetcher/http_fetcher_quic_unittest.cc",
+      "server/quic_proxy_server_unittest.cc",
+      "test/stellite_test_suite.cc",
+      "test/stellite_test_suite.h",
+      ]
 
-  deps = [
-    "//base",
-    "//gin",
-    "//net",
-    "//net:test_support",
-    "//testing/gtest",
-    ":stellite_http_client",
-    ":stellite_quic_server_base",
-  ]
+        deps = [
+        "//base",
+      "//gin",
+      "//net",
+      "//net:test_support",
+      "//testing/gtest",
+      ":stellite_http_client",
+      ":stellite_quic_server_base",
+      ]
+  }
 }
