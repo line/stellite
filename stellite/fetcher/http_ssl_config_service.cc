@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "stellite/client/http_ssl_config_service.h"
+#include "stellite/fetcher/http_ssl_config_service.h"
 
 namespace net {
 

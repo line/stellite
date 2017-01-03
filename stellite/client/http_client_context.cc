@@ -37,6 +37,8 @@ const char* kNetworkThreadName = "network thread";
 
 namespace stellite {
 
+// HttpClientContext::ContextImpl ----------------------------------------------
+
 class HttpClientContext::ContextImpl {
  public:
   ContextImpl(const Params& context_params);
@@ -85,19 +87,39 @@ bool HttpClientContext::ContextImpl::Init() {
     return false;
   }
 
+  // init network thread
   base::Thread::Options network_thread_options;
   network_thread_options.message_loop_type = base::MessageLoop::TYPE_IO;
   network_thread_.reset(new base::Thread(kNetworkThreadName));
   network_thread_->StartWithOptions(network_thread_options);
 
+  // init http request context
   HttpRequestContextGetter::Params params;
   params.proxy_host = context_params_.proxy_host;
+
+  // http2
   params.enable_http2 = context_params_.using_http2;
+  params.enable_http2_alternative_service_with_different_host =
+      context_params_.enable_http2_alternative_service_with_different_host;
+
+  // quic
   params.enable_quic = context_params_.using_quic;
+  params.enable_quic_alternative_service_with_different_host =
+      context_params_.enable_quic_alternative_service_with_different_host;
+
+  // ignore certificate error
   params.ignore_certificate_errors = context_params_.ignore_certificate_errors;
+
+  // cache
   params.using_disk_cache = context_params_.using_disk_cache;
-  params.cache_max_size = 0;
+  params.using_memory_cache = context_params_.using_memory_cache;
+  params.cache_max_size = context_params_.max_cache_size;
+  params.disk_cache_path = context_params_.disk_cache_path;
+
+  // sdch compaction support
   params.sdch_enable = true;
+
+  // throttling
   params.throttling_enable = true;
 
   http_request_context_getter_ = new HttpRequestContextGetter(
@@ -133,19 +155,24 @@ void HttpClientContext::ContextImpl::ReleaseHttpClient(HttpClient* client) {
   delete client;
 }
 
+// HttpClientContext::Params ---------------------------------------------------
+
 HttpClientContext::Params::Params()
     : using_quic(true),
       using_http2(true),
-      using_disk_cache(false),
       ignore_certificate_errors(false),
       enable_http2_alternative_service_with_different_host(true),
-      enable_quic_alternative_service_with_different_host(true) {
+      enable_quic_alternative_service_with_different_host(true),
+      using_disk_cache(false),
+      using_memory_cache(false),
+      max_cache_size(0) {
 }
 
 HttpClientContext::Params::Params(const Params& other) = default;
 
 HttpClientContext::Params::~Params() {}
 
+// HttpClientContext -----------------------------------------------------------
 
 HttpClientContext::HttpClientContext(const Params& context_params)
   : context_impl_(new HttpClientContext::ContextImpl(context_params)) {
