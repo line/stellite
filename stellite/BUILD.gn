@@ -15,10 +15,6 @@ import("//testing/test.gni")
 
 component("stellite") {
   sources = [
-    "client/http_request.cc",
-    "client/http_response.cc",
-    "client/http_ssl_config_service.cc",
-    "client/http_ssl_config_service.h",
     "crypto/quic_ephemeral_key_source.cc",
     "crypto/quic_ephemeral_key_source.h",
     "fetcher/http_fetcher.cc",
@@ -33,10 +29,10 @@ component("stellite") {
     "fetcher/http_request_context_getter.h",
     "fetcher/http_rewrite.cc",
     "fetcher/http_rewrite.h",
+    "fetcher/http_ssl_config_service.cc",
+    "fetcher/http_ssl_config_service.h",
     "fetcher/spdy_utils.cc",
     "fetcher/spdy_utils.h",
-    "include/http_request.h",
-    "include/http_response.h",
     "process/daemon.cc",
     "process/daemon.h",
     "socket/quic_udp_server_socket.cc",
@@ -50,14 +46,6 @@ component("stellite") {
     "stats/server_stats_recorder.cc",
     "stats/server_stats_recorder.h",
   ]
-
-  defines = [
-    "STELLITE_IMPLEMENTATION",
-  ]
-
-  if (!is_win) {
-    defines += [ "COMPONENT_BUILD" ]
-  }
 
   deps = [
     "//third_party/protobuf:protobuf_lite",
@@ -120,12 +108,24 @@ component("stellite_http_client") {
     "client/http_client_context.cc",
     "client/http_client_impl.cc",
     "client/http_client_impl.h",
+    "client/http_request.cc",
+    "client/http_response.cc",
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
+    "include/http_request.h",
+    "include/http_response.h",
     "include/logging.h",
     "include/stellite_export.h",
   ]
+
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+  ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
 
   deps = [
     "//base",
@@ -195,22 +195,24 @@ component("stellite_client_binder") {
   ]
 }
 
-test("stellite_unittests") {
-  sources = [
-    "bin/run_all_unittests.cc",
-    "fetcher/http_fetcher_quic_unittest.cc",
-    "server/quic_proxy_server_unittest.cc",
-    "test/stellite_test_suite.cc",
-    "test/stellite_test_suite.h",
-  ]
+if (!is_ios && !is_android) {
+  test("stellite_unittests") {
+    sources = [
+      "bin/run_all_unittests.cc",
+      "fetcher/http_fetcher_quic_unittest.cc",
+      "server/quic_proxy_server_unittest.cc",
+      "test/stellite_test_suite.cc",
+      "test/stellite_test_suite.h",
+      ]
 
-  deps = [
-    "//base",
-    "//gin",
-    "//net",
-    "//net:test_support",
-    "//testing/gtest",
-    ":stellite_http_client",
-    ":stellite_quic_server_base",
-  ]
+        deps = [
+        "//base",
+      "//gin",
+      "//net",
+      "//net:test_support",
+      "//testing/gtest",
+      ":stellite_http_client",
+      ":stellite_quic_server_base",
+      ]
+  }
 }

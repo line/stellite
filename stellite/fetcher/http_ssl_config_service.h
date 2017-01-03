@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef STELLITE_CLIENT_HTTP_SSL_CONFIG_SERVICE_H_
-#define STELLITE_CLIENT_HTTP_SSL_CONFIG_SERVICE_H_
+#ifndef STELLITE_FETCHER_HTTP_SSL_CONFIG_SERVICE_H_
+#define STELLITE_FETCHER_HTTP_SSL_CONFIG_SERVICE_H_
 
 #include "stellite/include/stellite_export.h"
 #include "net/ssl/ssl_config_service.h"
