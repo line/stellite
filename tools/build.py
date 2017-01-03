@@ -17,6 +17,7 @@ ALL = 'all'
 ANDROID = 'android'
 BUILD = 'build'
 CHROMIUM = 'chromium'
+CHROMIUM_PATH = 'chromium_path'
 CLEAN = 'clean'
 CLIENT_BINDER = 'client_binder'
 CONFIGURE = 'configure'
@@ -33,8 +34,8 @@ STELLITE_HTTP_CLIENT = 'stellite_http_client'
 STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
 STELLITE_QUIC_SERVER_BIN = 'stellite_quic_server_bin'
 UBUNTU = 'ubuntu'
-WINDOWS = 'windows'
 UNITTEST = 'unittest'
+WINDOWS = 'windows'
 
 GIT_DEPOT = 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
 
@@ -342,6 +343,8 @@ def option_parser(args):
                       choices=[STATIC_LIBRARY, SHARED_LIBRARY, EXECUTABLE],
                       default=STATIC_LIBRARY)
 
+  parser.add_argument('--chromium-path', default=None)
+
   parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
   parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
   options = parser.parse_args(args)
@@ -374,24 +377,30 @@ def option_parser(args):
 
 def build_object(options):
   if options.target_platform == ANDROID:
-    return AndroidBuild(options.target, options.target_type,
-                        verbose=options.verbose)
+    return AndroidBuild(options.target,
+                        options.target_type,
+                        verbose=options.verbose,
+                        chromium_path=options.chromium_path)
 
   if options.target_platform == MAC:
     return MacBuild(options.target, options.target_type,
-                    verbose=options.verbose)
+                    verbose=options.verbose,
+                    chromium_path=options.chromium_path)
 
   if options.target_platform == IOS:
     return IOSBuild(options.target, options.target_type,
-                    verbose=options.verbose)
+                    verbose=options.verbose,
+                    chromium_path=options.chromium_path)
 
   if options.target_platform == LINUX:
     return LinuxBuild(options.target, options.target_type,
-                      verbose=options.verbose)
+                      verbose=options.verbose,
+                      chromium_path=options.chromium_path)
 
   if options.target_platform == WINDOWS:
     return WindowsBuild(options.target, options.target_type,
-                        verbose=options.verbose)
+                        verbose=options.verbose,
+                        chromium_path=options.chromium_path)
 
   raise Exception('unsupported target_platform: {}'.format(options.target_type))
 
@@ -417,11 +426,13 @@ def copy_tree(src, dest):
 class BuildObject(object):
   """build stellite client and server"""
 
-  def __init__(self, target, target_type, target_platform, verbose=False):
+  def __init__(self, target, target_type, target_platform, verbose=False,
+               chromium_path=None):
     self._target = target
     self._target_type = target_type
     self._target_platform = target_platform
     self._verbose = verbose
+    self._chromium_path = chromium_path
 
     self.fetch_depot_tools()
 
@@ -498,6 +509,9 @@ class BuildObject(object):
 
   @property
   def chromium_path(self):
+    if self._chromium_path:
+      return self._chromium_path
+
     chromium_dir = 'chromium_{}'.format(self.target_platform)
     return os.path.join(self.third_party_path, chromium_dir)
 
@@ -782,10 +796,12 @@ class BuildObject(object):
 
 class AndroidBuild(BuildObject):
   """android build"""
-  def __init__(self, target, target_type, verbose=False, target_arch=None):
+  def __init__(self, target, target_type, verbose=False, target_arch=None,
+               chromium_path=None):
     self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(target, target_type, ANDROID,
-                                         verbose=verbose)
+    super(self.__class__, self).__init__(
+      target, target_type, ANDROID, verbose=verbose,
+      chromium_path=chromium_path)
 
   @property
   def target_arch(self):
@@ -1056,7 +1072,8 @@ class AndroidBuild(BuildObject):
       gn_context += '\n' + self.appendix_gn_args(arch)
 
       build = AndroidBuild(self.target, self.target_type, target_arch=arch,
-                           verbose=self.verbose)
+                           verbose=self.verbose,
+                           chromium_path=self.chromium_path)
       build.generate_ninja_script(gn_args=gn_context)
       build.build_target(self.target)
       output_list.append(build.package_target())
@@ -1071,7 +1088,8 @@ class AndroidBuild(BuildObject):
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
       build = AndroidBuild(self.target, self.target_type, target_arch=arch,
-                           verbose=self.verbose)
+                           verbose=self.verbose,
+                           chromium_path=self.chromium_path)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1082,9 +1100,10 @@ class AndroidBuild(BuildObject):
 
 class MacBuild(BuildObject):
   """mac build"""
-  def __init__(self, target, target_type, verbose=False):
+  def __init__(self, target, target_type, verbose=False, chromium_path=None):
     super(self.__class__, self).__init__(target, target_type, MAC,
-                                         verbose=verbose)
+                                         verbose=verbose,
+                                         chromium_path=chromium_path)
 
   def build(self):
     self.generate_ninja_script(GN_ARGS_MAC)
@@ -1179,10 +1198,11 @@ class MacBuild(BuildObject):
 
 class IOSBuild(BuildObject):
   """ios build"""
-  def __init__(self, target, target_type, target_arch=None, verbose=False):
+  def __init__(self, target, target_type, target_arch=None, verbose=False,
+               chromium_path=None):
     self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(target, target_type, IOS,
-                                         verbose=verbose)
+    super(self.__class__, self).__init__(
+      target, target_type, IOS, verbose=verbose, chromium_path=chromium_path)
 
   @property
   def target_arch(self):
@@ -1214,7 +1234,7 @@ class IOSBuild(BuildObject):
     lib_list = []
     for arch in ('x86', 'x64', 'arm', 'arm64'):
       build = IOSBuild(self.target, self.target_type, target_arch=arch,
-                       verbose=self.verbose)
+                       verbose=self.verbose, chromium_path=self.chromium_path)
       build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(arch),
                                   gn_options=['--check'])
       build.build_target(self.target)
@@ -1231,7 +1251,7 @@ class IOSBuild(BuildObject):
   def clean(self):
     for arch in ('arm', 'arm64', 'x86', 'x64'):
       build = IOSBuild(self.target, self.target_type, target_arch=arch,
-                       verbose=self.verbose)
+                       verbose=self.verbose, chromium_path=self.chromium_path)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1329,9 +1349,10 @@ class IOSBuild(BuildObject):
 
 class LinuxBuild(BuildObject):
   """linux build"""
-  def __init__(self, target, target_type, verbose=False):
+  def __init__(self, target, target_type, verbose=False, chromium_path=None):
     super(self.__class__, self).__init__(target, target_type, LINUX,
-                                         verbose=verbose)
+                                         verbose=verbose,
+                                         chromium_path=chromium_path)
 
   def build(self):
     self.generate_ninja_script(GN_ARGS_LINUX)
@@ -1408,9 +1429,10 @@ class LinuxBuild(BuildObject):
 
 class WindowsBuild(BuildObject):
   """windows build"""
-  def __init__(self, target, target_type, verbose=False):
+  def __init__(self, target, target_type, verbose=False, chromium_path=None):
     super(self.__class__, self).__init__(target, target_type, WINDOWS,
-                                         verbose=verbose)
+                                         verbose=verbose,
+                                         chromium_path=chromium_path)
     self._vs_path = None
     self._vs_version = None
     self._sdk_path = None
