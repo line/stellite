@@ -88,7 +88,7 @@ TEST_F(HttpResponseTest, ResponseCopyConstruct) {
   source.server_data_unavailable = false;
   source.network_accessed = true;
   source.was_fetched_via_spdy = false;
-  source.was_npn_negotiated = false;
+  source.was_alpn_negotiated = false;
   source.was_fetched_via_proxy = false;
 
   HttpResponse dest(source);
@@ -101,7 +101,7 @@ TEST_F(HttpResponseTest, ResponseCopyConstruct) {
   EXPECT_EQ(source.server_data_unavailable, dest.server_data_unavailable);
   EXPECT_EQ(source.network_accessed, dest.network_accessed);
   EXPECT_EQ(source.was_fetched_via_spdy, dest.was_fetched_via_spdy);
-  EXPECT_EQ(source.was_npn_negotiated, dest.was_npn_negotiated);
+  EXPECT_EQ(source.was_alpn_negotiated, dest.was_alpn_negotiated);
   EXPECT_EQ(source.was_fetched_via_proxy, dest.was_fetched_via_proxy);
 
   HttpResponse clone;
@@ -115,7 +115,7 @@ TEST_F(HttpResponseTest, ResponseCopyConstruct) {
   EXPECT_EQ(source.server_data_unavailable, clone.server_data_unavailable);
   EXPECT_EQ(source.network_accessed, clone.network_accessed);
   EXPECT_EQ(source.was_fetched_via_spdy, clone.was_fetched_via_spdy);
-  EXPECT_EQ(source.was_npn_negotiated, clone.was_npn_negotiated);
+  EXPECT_EQ(source.was_alpn_negotiated, clone.was_alpn_negotiated);
   EXPECT_EQ(source.was_fetched_via_proxy, clone.was_fetched_via_proxy);
 }
 

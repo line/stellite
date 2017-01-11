@@ -38,6 +38,13 @@ HttpFetcherTask::~HttpFetcherTask() {}
 void HttpFetcherTask::Start(const HttpRequest& request,
                             int64_t timeout_msec) {
   GURL url(request.url);
+  if (!url.is_valid()) {
+    LOG(ERROR) << "invalid url: " << request.url;
+    if (visitor_.get()) {
+      visitor_->OnTaskError(request_id_, nullptr, net::ERR_INVALID_URL);
+    }
+    return;
+  }
 
   net::URLFetcher::RequestType request_type = net::URLFetcher::GET;
   if (request.request_type == HttpRequest::POST) {
@@ -53,9 +60,8 @@ void HttpFetcherTask::Start(const HttpRequest& request,
   }
 
   // Set URL fetcher
-  url_fetcher_.reset(
-      new HttpFetcherImpl(url, request_type, this,
-                          request.is_stream_response));
+  url_fetcher_.reset(new HttpFetcherImpl(url, request_type, this,
+                                         request.is_stream_response));
 
   net::HttpRequestHeaders headers;
   headers.AddHeadersFromString(request.headers.ToString());
@@ -66,6 +72,25 @@ void HttpFetcherTask::Start(const HttpRequest& request,
   // set payload
   std::string payload(request.upload_stream.str());
   DCHECK(!(payload.size() && request.is_chunked_upload));
+
+  switch (request_type) {
+    case net::URLFetcher::POST:
+    case net::URLFetcher::PUT:
+    case net::URLFetcher::PATCH: {
+      if (!payload.size() && !request.is_chunked_upload) {
+        LOG(ERROR) << "upload content must be set";
+        if (visitor_.get()) {
+          visitor_->OnTaskError(request_id_, nullptr,
+                                net::ERR_INVALID_ARGUMENT);
+        }
+        return;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
 
   if (request.is_chunked_upload || payload.size()) {
     std::string content_type;
@@ -112,24 +137,18 @@ void HttpFetcherTask::OnFetchComplete(
     url_fetch_timeout_timer_->Stop();
   }
 
-  if (source) {
-    const net::URLRequestStatus& status = source->GetStatus();
-    if (status.status() == net::URLRequestStatus::Status::FAILED) {
-      LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
-          << source->GetURL();
-      LOG(ERROR) << source->GetResponseCode();
+  const net::URLRequestStatus& status = source->GetStatus();
+  if (status.status() == net::URLRequestStatus::Status::FAILED) {
+    LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
+               << source->GetURL();
+    LOG(ERROR) << source->GetResponseCode();
 
-      if (visitor_.get()) {
-        visitor_->OnTaskError(request_id_, source, status.error());
-      }
-    } else {
-      if (visitor_.get()) {
-        visitor_->OnTaskComplete(request_id_, source, response_info);
-      }
+    if (visitor_.get()) {
+      visitor_->OnTaskError(request_id_, source, status.error());
     }
   } else {
     if (visitor_.get()) {
-      visitor_->OnTaskComplete(request_id_, nullptr, response_info);
+      visitor_->OnTaskComplete(request_id_, source, response_info);
     }
   }
 
@@ -142,8 +161,7 @@ void HttpFetcherTask::OnFetchStream(
     const char* data, size_t len, bool fin) {
 
   if (visitor_.get()) {
-    visitor_->OnTaskStream(request_id_, source, response_info,
-                           data, len, fin);
+    visitor_->OnTaskStream(request_id_, source, response_info, data, len, fin);
   }
 
   if (fin) {

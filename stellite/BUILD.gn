@@ -110,6 +110,7 @@ component("stellite_http_client") {
     "client/http_client_impl.h",
     "client/http_request.cc",
     "client/http_response.cc",
+    "client/http_session.cc",
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
@@ -117,6 +118,7 @@ component("stellite_http_client") {
     "include/http_response.h",
     "include/logging.h",
     "include/stellite_export.h",
+    "include/http_session.h",
   ]
 
   defines = [
@@ -146,6 +148,23 @@ component("stellite_http_client") {
 executable("stellite_http_client_bin") {
   sources = [
     "bin/stellite_http_client_bin.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//build/config/sanitizers:deps",
+    "//build/win:default_exe_manifest",
+    "//net",
+    "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
+    "//url",
+    ":stellite_http_client",
+  ]
+}
+
+executable("stellite_http_session_bin") {
+  sources = [
+    "bin/stellite_http_session_bin.cc",
   ]
 
   deps = [
@@ -199,20 +218,22 @@ if (!is_ios && !is_android) {
   test("stellite_unittests") {
     sources = [
       "bin/run_all_unittests.cc",
+      "client/http_request_unittest.cc",
+      "client/http_response_unittest.cc",
       "fetcher/http_fetcher_quic_unittest.cc",
       "server/quic_proxy_server_unittest.cc",
       "test/stellite_test_suite.cc",
       "test/stellite_test_suite.h",
-      ]
+    ]
 
-        deps = [
-        "//base",
+    deps = [
+      "//base",
       "//gin",
       "//net",
       "//net:test_support",
       "//testing/gtest",
       ":stellite_http_client",
       ":stellite_quic_server_base",
-      ]
+    ]
   }
 }

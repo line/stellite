@@ -32,6 +32,7 @@ SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN = 'simple_chunked_upload_client_bin'
 STATIC_LIBRARY = 'static_library'
 STELLITE_HTTP_CLIENT = 'stellite_http_client'
 STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
+STELLITE_HTTP_SESSION_BIN = 'stellite_http_session_bin'
 STELLITE_QUIC_SERVER_BIN = 'stellite_quic_server_bin'
 UBUNTU = 'ubuntu'
 UNITTEST = 'unittest'
@@ -332,11 +333,14 @@ def option_parser(args):
                       default=host_platform)
 
   parser.add_argument('--target',
-                      choices=[STELLITE_QUIC_SERVER_BIN,
-                               STELLITE_HTTP_CLIENT,
-                               CLIENT_BINDER,
-                               STELLITE_HTTP_CLIENT_BIN,
-                               SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN],
+                      choices=[
+                        CLIENT_BINDER,
+                        SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN,
+                        STELLITE_HTTP_CLIENT,
+                        STELLITE_HTTP_CLIENT_BIN,
+                        STELLITE_HTTP_SESSION_BIN,
+                        STELLITE_QUIC_SERVER_BIN,
+                      ],
                       default=STELLITE_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
@@ -349,7 +353,9 @@ def option_parser(args):
   parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
   options = parser.parse_args(args)
 
-  if options.target in (STELLITE_QUIC_SERVER_BIN, STELLITE_HTTP_CLIENT_BIN,
+  if options.target in (STELLITE_QUIC_SERVER_BIN,
+                        STELLITE_HTTP_CLIENT_BIN,
+                        STELLITE_HTTP_SESSION_BIN,
                         SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN):
     options.target_type = EXECUTABLE
 

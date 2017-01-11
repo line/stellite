@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include "base/synchronization/waitable_event.h"
+#include "base/run_loop.h"
 #include "base/time/time.h"
 #include "stellite/include/http_client_context.h"
 #include "stellite/include/http_request.h"
@@ -24,14 +24,14 @@
 #include "stellite/test/http_test_server.h"
 #include "net/base/net_errors.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "net/server/http_server.h"
 
 namespace stellite {
 
 class HttpClientResponseCallback : public HttpResponseDelegate {
  public:
   HttpClientResponseCallback()
-      : on_request_completed_(true, false),
-        request_completed_(false),
+      : request_completed_(false),
         last_error_code_(0) {
     start_time_ = base::TimeTicks::Now();
   }
@@ -41,22 +41,23 @@ class HttpClientResponseCallback : public HttpResponseDelegate {
     request_completed_ = true;
     response_ = response;
     end_time_ = base::TimeTicks::Now();
-    on_request_completed_.Signal();
+    run_loop_.Quit();
   }
 
   void OnHttpStream(int request_id, const HttpResponse& response,
-                    const char* stream_data, size_t len) override {
+                    const char* stream_data, size_t len,
+                    bool is_last) override {
   }
 
   void OnHttpError(int request_id, int error_code,
                    const std::string& message) override {
     last_error_code_ = error_code;
     end_time_ = base::TimeTicks::Now();
-    on_request_completed_.Signal();
+    run_loop_.Quit();
   }
 
   void WaitForResponse() {
-    on_request_completed_.Wait();
+    run_loop_.Run();
   }
 
   bool request_complete() {
@@ -71,7 +72,8 @@ class HttpClientResponseCallback : public HttpResponseDelegate {
     return last_error_code_;
   }
 
-  base::WaitableEvent on_request_completed_;
+  base::RunLoop run_loop_;
+
   bool request_completed_;
   HttpResponse response_;
 
@@ -99,7 +101,6 @@ class HttpClientTest : public testing::Test {
 
     HttpClientContext::Params params;
     params.using_quic = false;
-    params.using_spdy = false;
     params.using_http2 = false;
 
     context_.reset(new HttpClientContext(params));
@@ -130,7 +131,7 @@ class HttpClientTest : public testing::Test {
 TEST_F(HttpClientTest, TestHttp11Get) {
   HttpRequest request;
   request.url = "http://example.com:8888";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request);
 
   response_callback_->WaitForResponse();
@@ -141,7 +142,7 @@ TEST_F(HttpClientTest, TestHttp11Get) {
 TEST_F(HttpClientTest, TestHttp11Post) {
   HttpRequest request;
   request.url = "http://example.com:8888";
-  request.method = "POST";
+  request.request_type = HttpRequest::POST;
   http_client_->Request(request);
 
   response_callback_->WaitForResponse();
@@ -151,7 +152,7 @@ TEST_F(HttpClientTest, TestHttp11Post) {
 TEST_F(HttpClientTest, TestHttp11Put) {
   HttpRequest request;
   request.url = "http://example.com:8888";
-  request.method = "PUT";
+  request.request_type = HttpRequest::PUT;
   http_client_->Request(request);
 
   response_callback_->WaitForResponse();
@@ -161,7 +162,7 @@ TEST_F(HttpClientTest, TestHttp11Put) {
 TEST_F(HttpClientTest, TestHttp11Delete) {
   HttpRequest request;
   request.url = "http://example.com:8888";
-  request.method = "DELETE";
+  request.request_type = HttpRequest::DELETE_REQUEST;
   http_client_->Request(request);
 
   response_callback_->WaitForResponse();
@@ -171,7 +172,7 @@ TEST_F(HttpClientTest, TestHttp11Delete) {
 TEST_F(HttpClientTest, TestHttps) {
   HttpRequest request;
   request.url = "https://example.com:9999";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request);
 
   response_callback_->WaitForResponse();
@@ -183,7 +184,7 @@ TEST_F(HttpClientTest, TestConnectionRefused) {
 
   // cannot receive an ACK
   request.url = "http://example.com:81";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request, 100); // 100 ms
 
   response_callback_->WaitForResponse();
@@ -193,7 +194,7 @@ TEST_F(HttpClientTest, TestConnectionRefused) {
 TEST_F(HttpClientTest, TestHttpRequestConnectionTimeout) {
   HttpRequest request;
   request.url = "http://example.com:8888/pending?delay=2000";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request, 100); // 100 ms
 
   response_callback_->WaitForResponse();
@@ -203,7 +204,7 @@ TEST_F(HttpClientTest, TestHttpRequestConnectionTimeout) {
 TEST_F(HttpClientTest, TestHttpRequestTimeout) {
   HttpRequest request;
   request.url = "http://example.com:8888/send_and_wait?delay=2000";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request, 100); // 100 ms
 
   response_callback_->WaitForResponse();
@@ -213,14 +214,14 @@ TEST_F(HttpClientTest, TestHttpRequestTimeout) {
 TEST_F(HttpClientTest, ShutdownClientContextWhenRequesetArePending) {
   HttpRequest request;
   request.url = "http://example.com:81";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request, 10000); // 10000 ms
 }
 
 TEST_F(HttpClientTest, GzipRequest) {
   HttpRequest request;
   request.url = "http://example.com:8888/gzip";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
 
   // set deflate or gzip
   request.headers.SetHeader("Accept-Encoding", "gzip");
@@ -242,7 +243,7 @@ TEST_F(HttpClientTest, GzipRequest) {
 TEST_F(HttpClientTest, DeflateRequest) {
   HttpRequest request;
   request.url = "http://example.com:8888/deflate";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
 
   // set deflate or gzip
   request.headers.SetHeader("Accept-Encoding", "deflate");
@@ -264,10 +265,10 @@ TEST_F(HttpClientTest, DeflateRequest) {
 TEST_F(HttpClientTest, CancelHttpClientContextAfterRequest) {
   HttpRequest request;
   request.url = "https://example.com";
-  request.method = "GET";
+  request.request_type = HttpRequest::GET;
   http_client_->Request(request);
 
-  context_->Cancel();
+  context_->CancelAll();
 
   http_client_->Request(request);
 

@@ -19,20 +19,21 @@ Target platform: Android, Linux
 ```bash
 $ ./tools/build.py --help
 usage: build.py [-h] [--target-platform {linux,android,ios,mac,windows}]
-                [--target {stellite_quic_server,stellite_http_client,trident_http_client,client_binder}]
+                [--target {stellite_quic_server_bin,stellite_http_client,client_binder,stellite_http_client_bin,stellite_http_session_bin,simple_chunked_upload_client_bin}]
                 [--target-type {static_library,shared_library,executable}]
-                [-v]
-                {clean,build}
+                [--chromium-path CHROMIUM_PATH] [-v]
+                {clean,build,unittest}
 
 positional arguments:
-  {clean,build}
+  {clean,build,unittest}
 
 optional arguments:
   -h, --help            show this help message and exit
   --target-platform {linux,android,ios,mac,windows}
                         default platform mac
-  --target {stellite_quic_server,stellite_http_client,trident_http_client,client_binder}
+  --target {stellite_quic_server_bin,stellite_http_client,client_binder,stellite_http_client_bin,stellite_http_session_bin,simple_chunked_upload_client_bin}
   --target-type {static_library,shared_library,executable}
+  --chromium-path CHROMIUM_PATH
   -v, --verbose         verbose
 ```
 

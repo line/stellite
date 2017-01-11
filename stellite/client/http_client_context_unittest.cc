@@ -60,7 +60,7 @@ TEST_F(HttpClientContextTest, Cancel) {
   std::unique_ptr<HttpClientContext> context(new HttpClientContext(params));
   EXPECT_TRUE(context->Initialize());
 
-  context->Cancel();
+  context->CancelAll();
 
   EXPECT_TRUE(context->TearDown());
 }
