@@ -57,6 +57,14 @@ component("stellite") {
     "//third_party/boringssl",
     "//third_party/re2",
   ]
+
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+  ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
 }
 
 component("stellite_quic_server_base") {

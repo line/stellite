@@ -82,7 +82,7 @@ GN_ARGS_MAC = """
 disable_file_support = true
 disable_ftp_support = true
 is_component_build = false
-is_debug = true
+is_debug = false
 target_cpu = "x64"
 target_os = "mac"
 """
@@ -255,6 +255,7 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
   'third_party/tlslite',
   'third_party/yasm',
   'third_party/zlib',
+  'third_party/WebKit',
   'tools',
   'url',
   'v8',

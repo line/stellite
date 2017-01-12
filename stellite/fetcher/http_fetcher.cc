@@ -73,6 +73,13 @@ void HttpFetcher::StartRequest(int request_id,
                                const HttpRequest& http_request,
                                int64_t timeout,
                                base::WeakPtr<HttpFetcherTask::Visitor> d) {
+  if (!GURL(http_request.url).is_valid()) {
+    if (d.get()) {
+      d->OnTaskError(request_id, nullptr, net::ERR_INVALID_URL);
+    }
+    return;
+  }
+
   HttpFetcherTask* task = new HttpFetcherTask(this, request_id, d);
   task_map_.insert(std::make_pair(request_id, base::WrapUnique(task)));
 
