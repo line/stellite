@@ -13,10 +13,8 @@ import("//build/config/features.gni")
 import("//build/config/ui.gni")
 import("//testing/test.gni")
 
-component("stellite") {
+source_set("stellite") {
   sources = [
-    "crypto/quic_ephemeral_key_source.cc",
-    "crypto/quic_ephemeral_key_source.h",
     "fetcher/http_fetcher.cc",
     "fetcher/http_fetcher.h",
     "fetcher/http_fetcher_core.cc",
@@ -33,28 +31,16 @@ component("stellite") {
     "fetcher/http_ssl_config_service.h",
     "fetcher/spdy_utils.cc",
     "fetcher/spdy_utils.h",
-    "process/daemon.cc",
-    "process/daemon.h",
-    "socket/quic_udp_server_socket.cc",
-    "socket/quic_udp_server_socket.h",
-    "socket/quic_udp_socket.h",
-    "socket/quic_udp_socket_posix.cc",
-    "socket/quic_udp_socket_posix.h",
-    "stats/server_stats.cc",
-    "stats/server_stats.h",
-    "stats/server_stats_macro.h",
-    "stats/server_stats_recorder.cc",
-    "stats/server_stats_recorder.h",
   ]
 
   deps = [
-    "//third_party/protobuf:protobuf_lite",
     "//base",
     "//net",
     "//components/url_matcher",
     "//net:simple_quic_tools",
     "//build/config/sanitizers:deps",
     "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
     "//third_party/re2",
   ]
 
@@ -69,6 +55,10 @@ component("stellite") {
 
 component("stellite_quic_server_base") {
   sources = [
+    "crypto/quic_ephemeral_key_source.cc",
+    "crypto/quic_ephemeral_key_source.h",
+    "process/daemon.cc",
+    "process/daemon.h",
     "server/parse_util.cc",
     "server/parse_util.h",
     "server/proxy_stream.cc",
@@ -89,6 +79,16 @@ component("stellite_quic_server_base") {
     "server/server_session.h",
     "server/server_session_helper.cc",
     "server/server_session_helper.h",
+    "socket/quic_udp_server_socket.cc",
+    "socket/quic_udp_server_socket.h",
+    "socket/quic_udp_socket.h",
+    "socket/quic_udp_socket_posix.cc",
+    "socket/quic_udp_socket_posix.h",
+    "stats/server_stats.cc",
+    "stats/server_stats.h",
+    "stats/server_stats_macro.h",
+    "stats/server_stats_recorder.cc",
+    "stats/server_stats_recorder.h",
   ]
 
   deps = [
@@ -140,8 +140,13 @@ component("stellite_http_client") {
   deps = [
     "//base",
     "//base/third_party/dynamic_annotations",
+    "//build/config/sanitizers:deps",
+    "//components/url_matcher",
     "//net",
     "//url",
+    "//third_party/protobuf:protobuf_lite",
+    "//third_party/boringssl",
+    "//third_party/re2",
     ":stellite",
   ]
 

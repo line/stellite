@@ -754,7 +754,7 @@ class BuildObject(object):
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def build_target(self, target):
-    command = ['ninja']
+    command = [os.path.join(self.depot_tools_path, 'ninja')]
     if self.verbose:
       command.append('-v')
     command.extend(['-C', self.build_output_path, target])

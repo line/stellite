@@ -36,7 +36,7 @@ class URLRequestContextGetter;
 
 class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
  public:
-  class Visitor {
+  class STELLITE_EXPORT Visitor {
    public:
     virtual ~Visitor() {}
 
