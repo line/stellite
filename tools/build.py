@@ -76,6 +76,7 @@ disable_ftp_support = true
 is_component_build = false
 target_cpu = "x64"
 target_os = "linux"
+is_debug = false
 """
 
 GN_ARGS_MAC = """
