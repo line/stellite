@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef QUIC_FETCHER_HTTP_REWRITE_H_
-#define QUIC_FETCHER_HTTP_REWRITE_H_
+#ifndef STELLITE_FETCHER_HTTP_REWRITE_H_
+#define STELLITE_FETCHER_HTTP_REWRITE_H_
 
 #include <memory>
 #include <set>
@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "components/url_matcher/regex_set_matcher.h"
+#include "stellite/include/stellite_export.h"
 
 namespace url_matcher {
 class StringPattern;
@@ -30,7 +31,7 @@ namespace net {
 
 typedef std::vector<std::pair<std::string, std::string>> RewriteRules;
 
-class HttpRewrite {
+class STELLITE_EXPORT HttpRewrite {
  public:
   HttpRewrite();
   ~HttpRewrite();

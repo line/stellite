@@ -32,6 +32,7 @@ SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN = 'simple_chunked_upload_client_bin'
 STATIC_LIBRARY = 'static_library'
 STELLITE_HTTP_CLIENT = 'stellite_http_client'
 STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
+STELLITE_HTTP_SESSION_BIN = 'stellite_http_session_bin'
 STELLITE_QUIC_SERVER_BIN = 'stellite_quic_server_bin'
 UBUNTU = 'ubuntu'
 UNITTEST = 'unittest'
@@ -75,13 +76,14 @@ disable_ftp_support = true
 is_component_build = false
 target_cpu = "x64"
 target_os = "linux"
+is_debug = false
 """
 
 GN_ARGS_MAC = """
 disable_file_support = true
 disable_ftp_support = true
 is_component_build = false
-is_debug = true
+is_debug = false
 target_cpu = "x64"
 target_os = "mac"
 """
@@ -254,6 +256,7 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
   'third_party/tlslite',
   'third_party/yasm',
   'third_party/zlib',
+  'third_party/WebKit',
   'tools',
   'url',
   'v8',
@@ -332,11 +335,14 @@ def option_parser(args):
                       default=host_platform)
 
   parser.add_argument('--target',
-                      choices=[STELLITE_QUIC_SERVER_BIN,
-                               STELLITE_HTTP_CLIENT,
-                               CLIENT_BINDER,
-                               STELLITE_HTTP_CLIENT_BIN,
-                               SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN],
+                      choices=[
+                        CLIENT_BINDER,
+                        SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN,
+                        STELLITE_HTTP_CLIENT,
+                        STELLITE_HTTP_CLIENT_BIN,
+                        STELLITE_HTTP_SESSION_BIN,
+                        STELLITE_QUIC_SERVER_BIN,
+                      ],
                       default=STELLITE_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
@@ -349,7 +355,9 @@ def option_parser(args):
   parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
   options = parser.parse_args(args)
 
-  if options.target in (STELLITE_QUIC_SERVER_BIN, STELLITE_HTTP_CLIENT_BIN,
+  if options.target in (STELLITE_QUIC_SERVER_BIN,
+                        STELLITE_HTTP_CLIENT_BIN,
+                        STELLITE_HTTP_SESSION_BIN,
                         SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN):
     options.target_type = EXECUTABLE
 
@@ -747,7 +755,7 @@ class BuildObject(object):
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def build_target(self, target):
-    command = ['ninja']
+    command = [os.path.join(self.depot_tools_path, 'ninja')]
     if self.verbose:
       command.append('-v')
     command.extend(['-C', self.build_output_path, target])
@@ -1556,6 +1564,17 @@ class WindowsBuild(BuildObject):
   def unittest(self):
     pass
 
+  def fetch_depot_tools(self):
+    """get depot_tools code"""
+    if os.path.exists(self.depot_tools_path):
+      return
+
+    os.makedirs(self.depot_tools_path)
+    self.execute(['git', 'clone', GIT_DEPOT, self.depot_tools_path],
+                 cwd=self.depot_tools_path)
+    self.execute([
+      os.path.join(self.depot_tools_path, 'bootstrap', 'win', 'win_tools.bat')
+    ])
 
 def main(args):
   """main entry point"""

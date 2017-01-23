@@ -13,10 +13,8 @@ import("//build/config/features.gni")
 import("//build/config/ui.gni")
 import("//testing/test.gni")
 
-component("stellite") {
+source_set("stellite") {
   sources = [
-    "crypto/quic_ephemeral_key_source.cc",
-    "crypto/quic_ephemeral_key_source.h",
     "fetcher/http_fetcher.cc",
     "fetcher/http_fetcher.h",
     "fetcher/http_fetcher_core.cc",
@@ -33,34 +31,34 @@ component("stellite") {
     "fetcher/http_ssl_config_service.h",
     "fetcher/spdy_utils.cc",
     "fetcher/spdy_utils.h",
-    "process/daemon.cc",
-    "process/daemon.h",
-    "socket/quic_udp_server_socket.cc",
-    "socket/quic_udp_server_socket.h",
-    "socket/quic_udp_socket.h",
-    "socket/quic_udp_socket_posix.cc",
-    "socket/quic_udp_socket_posix.h",
-    "stats/server_stats.cc",
-    "stats/server_stats.h",
-    "stats/server_stats_macro.h",
-    "stats/server_stats_recorder.cc",
-    "stats/server_stats_recorder.h",
   ]
 
   deps = [
-    "//third_party/protobuf:protobuf_lite",
     "//base",
     "//net",
     "//components/url_matcher",
     "//net:simple_quic_tools",
     "//build/config/sanitizers:deps",
     "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
     "//third_party/re2",
   ]
+
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+  ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
 }
 
 component("stellite_quic_server_base") {
   sources = [
+    "crypto/quic_ephemeral_key_source.cc",
+    "crypto/quic_ephemeral_key_source.h",
+    "process/daemon.cc",
+    "process/daemon.h",
     "server/parse_util.cc",
     "server/parse_util.h",
     "server/proxy_stream.cc",
@@ -81,6 +79,16 @@ component("stellite_quic_server_base") {
     "server/server_session.h",
     "server/server_session_helper.cc",
     "server/server_session_helper.h",
+    "socket/quic_udp_server_socket.cc",
+    "socket/quic_udp_server_socket.h",
+    "socket/quic_udp_socket.h",
+    "socket/quic_udp_socket_posix.cc",
+    "socket/quic_udp_socket_posix.h",
+    "stats/server_stats.cc",
+    "stats/server_stats.h",
+    "stats/server_stats_macro.h",
+    "stats/server_stats_recorder.cc",
+    "stats/server_stats_recorder.h",
   ]
 
   deps = [
@@ -110,6 +118,7 @@ component("stellite_http_client") {
     "client/http_client_impl.h",
     "client/http_request.cc",
     "client/http_response.cc",
+    "client/http_session.cc",
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
@@ -117,6 +126,7 @@ component("stellite_http_client") {
     "include/http_response.h",
     "include/logging.h",
     "include/stellite_export.h",
+    "include/http_session.h",
   ]
 
   defines = [
@@ -130,8 +140,13 @@ component("stellite_http_client") {
   deps = [
     "//base",
     "//base/third_party/dynamic_annotations",
+    "//build/config/sanitizers:deps",
+    "//components/url_matcher",
     "//net",
     "//url",
+    "//third_party/protobuf:protobuf_lite",
+    "//third_party/boringssl",
+    "//third_party/re2",
     ":stellite",
   ]
 
@@ -146,6 +161,23 @@ component("stellite_http_client") {
 executable("stellite_http_client_bin") {
   sources = [
     "bin/stellite_http_client_bin.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//build/config/sanitizers:deps",
+    "//build/win:default_exe_manifest",
+    "//net",
+    "//third_party/boringssl",
+    "//third_party/protobuf:protobuf_lite",
+    "//url",
+    ":stellite_http_client",
+  ]
+}
+
+executable("stellite_http_session_bin") {
+  sources = [
+    "bin/stellite_http_session_bin.cc",
   ]
 
   deps = [
@@ -199,20 +231,22 @@ if (!is_ios && !is_android) {
   test("stellite_unittests") {
     sources = [
       "bin/run_all_unittests.cc",
+      "client/http_request_unittest.cc",
+      "client/http_response_unittest.cc",
       "fetcher/http_fetcher_quic_unittest.cc",
       "server/quic_proxy_server_unittest.cc",
       "test/stellite_test_suite.cc",
       "test/stellite_test_suite.h",
-      ]
+    ]
 
-        deps = [
-        "//base",
+    deps = [
+      "//base",
       "//gin",
       "//net",
       "//net:test_support",
       "//testing/gtest",
       ":stellite_http_client",
       ":stellite_quic_server_base",
-      ]
+    ]
   }
 }

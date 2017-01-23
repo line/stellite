@@ -24,6 +24,7 @@
 #include "net/url_request/url_request.h"
 #include "net/url_request/url_request_context_getter_observer.h"
 #include "net/url_request/url_request_status.h"
+#include "stellite/include/stellite_export.h"
 #include "url/gurl.h"
 
 namespace base {
@@ -42,9 +43,10 @@ class URLFetcherResponseWriter;
 class URLRequestContextGetter;
 class URLRequestThrottlerEntryInterface;
 
-class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
-                        public URLRequest::Delegate,
-                        public URLRequestContextGetterObserver {
+class STELLITE_EXPORT HttpFetcherCore
+    : public base::RefCountedThreadSafe<HttpFetcherCore>,
+      public URLRequest::Delegate,
+      public URLRequestContextGetterObserver {
  public:
   HttpFetcherCore(URLFetcher* fetcher,
                   const GURL& original_url,
