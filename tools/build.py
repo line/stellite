@@ -76,6 +76,7 @@ disable_ftp_support = true
 is_component_build = false
 target_cpu = "x64"
 target_os = "linux"
+is_debug = false
 """
 
 GN_ARGS_MAC = """
@@ -754,7 +755,7 @@ class BuildObject(object):
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def build_target(self, target):
-    command = ['ninja']
+    command = [os.path.join(self.depot_tools_path, 'ninja')]
     if self.verbose:
       command.append('-v')
     command.extend(['-C', self.build_output_path, target])
@@ -1563,6 +1564,17 @@ class WindowsBuild(BuildObject):
   def unittest(self):
     pass
 
+  def fetch_depot_tools(self):
+    """get depot_tools code"""
+    if os.path.exists(self.depot_tools_path):
+      return
+
+    os.makedirs(self.depot_tools_path)
+    self.execute(['git', 'clone', GIT_DEPOT, self.depot_tools_path],
+                 cwd=self.depot_tools_path)
+    self.execute([
+      os.path.join(self.depot_tools_path, 'bootstrap', 'win', 'win_tools.bat')
+    ])
 
 def main(args):
   """main entry point"""

@@ -110,6 +110,12 @@ bool HttpClientContext::ContextImpl::Init() {
   // ignore certificate error
   params.ignore_certificate_errors = context_params_.ignore_certificate_errors;
 
+  // origins_to_force_quic_on
+  params.origins_to_force_quic_on.insert(
+      params.origins_to_force_quic_on.end(),
+      context_params_.origins_to_force_quic_on.begin(),
+      context_params_.origins_to_force_quic_on.end());
+
   // cache
   params.using_disk_cache = context_params_.using_disk_cache;
   params.using_memory_cache = context_params_.using_memory_cache;

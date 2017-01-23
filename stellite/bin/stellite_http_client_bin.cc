@@ -113,8 +113,8 @@ int main(int argc, char *argv[]) {
         "\n"
         "Options:\n"
         "-h, --help                  Show this help message and exit\n"
-        "--host=<host>               Specify the IP address of the host name to "
-        "connect to\n"
+        "--host=<host>               Specify the IP address of the host name to"
+        " connect to\n"
 #if defined(USE_OPENSSL_CERTS) && !defined(ANDROID)
         "--cacert=<path>             Specify the CA CertBundle\n"
 #endif
@@ -142,11 +142,17 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  base::AtExitManager at_exit_manager;
-
   stellite::HttpClientContext::Params params;
+
+  // set protocol
   params.using_quic = true;
   params.using_http2 = true;
+
+  // set quic host
+  if (FLAGS_host.size() && FLAGS_port.size()) {
+    std::string quic_origin = FLAGS_host + ":" + FLAGS_port;
+    params.origins_to_force_quic_on.push_back(quic_origin);
+  }
 
   std::unique_ptr<stellite::HttpCallback> callback(
       new stellite::HttpCallback());

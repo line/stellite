@@ -306,9 +306,12 @@ bool HttpRequestContextGetter::BuildContext(Params params) {
 
     std::unique_ptr<net::HttpCache::BackendFactory> cache_backend;
     if (params.using_disk_cache) {
+      base::FilePath::StringType file_cache_path(
+        params.disk_cache_path.begin(),
+        params.disk_cache_path.end());
       cache_backend.reset(new net::HttpCache::DefaultBackend(
               net::DISK_CACHE, net::CACHE_BACKEND_DEFAULT,
-              base::FilePath(params.disk_cache_path),
+              base::FilePath(file_cache_path),
               params.cache_max_size, network_task_runner_));
     } else {
       cache_backend = net::HttpCache::DefaultBackend::InMemory(
