@@ -31,6 +31,8 @@ source_set("stellite") {
     "fetcher/http_ssl_config_service.h",
     "fetcher/spdy_utils.cc",
     "fetcher/spdy_utils.h",
+    "client/http_request.cc",
+    "include/http_request.h",
   ]
 
   deps = [
@@ -116,13 +118,11 @@ component("stellite_http_client") {
     "client/http_client_context.cc",
     "client/http_client_impl.cc",
     "client/http_client_impl.h",
-    "client/http_request.cc",
     "client/http_response.cc",
     "client/http_session.cc",
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
-    "include/http_request.h",
     "include/http_response.h",
     "include/logging.h",
     "include/stellite_export.h",
