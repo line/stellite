@@ -1044,6 +1044,7 @@ class AndroidBuild(BuildObject):
       '-Wl,-wrap,realloc',
       '-Wl,-wrap,valloc',
       '-Wl,--gc-sections',
+      os.path.join(self.android_ndk_lib_dir, 'crtbegin_so.o'),
     ]
 
     objs = self.pattern_files(os.path.join(self.build_output_path, 'obj'),
@@ -1059,7 +1060,8 @@ class AndroidBuild(BuildObject):
       '-lc',
       '-ldl',
       '-lm',
-      '-llog'
+      '-llog',
+      os.path.join(self.android_ndk_lib_dir, 'crtend_so.o'),
     ])
 
     # armv6, armv7 arch leck of stack trace symbol in stl
