@@ -24,9 +24,10 @@ class STELLITE_EXPORT HttpFetcherDelegate {
   virtual void OnFetchComplete(const net::URLFetcher* source,
                                const net::HttpResponseInfo* response_info) = 0;
 
-  virtual void OnFetchStream(const net::URLFetcher* source,
-                             const net::HttpResponseInfo* response_info,
-                             const char* data, size_t len, bool fin) = 0;
+  virtual void OnFetchHeader(const net::URLFetcher* source,
+                             const net::HttpResponseInfo* response_info) = 0;
+
+  virtual void OnFetchStream(const char* data, size_t len, bool fin) = 0;
 };
 
 }  // namespace net

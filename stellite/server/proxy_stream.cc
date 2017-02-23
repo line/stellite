@@ -76,9 +76,14 @@ void ProxyStream::OnTaskComplete(int request_id, const URLFetcher* source,
   WriteAccessLog(source->GetResponseCode(), -1);
 }
 
-void ProxyStream::OnTaskStream(int request_id, const URLFetcher* source,
-                               const HttpResponseInfo* response_info,
-                               const char* data, size_t len, bool fin) {
+
+void ProxyStream::OnTaskHeader(int request_id, const URLFetcher* source,
+                               const HttpResponseInfo* response_info) {
+}
+
+
+void ProxyStream::OnTaskStream(int request_id, const char* data, size_t len,
+                               bool fin) {
   if (len == 0 || !fin) {
     return;
   }
