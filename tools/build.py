@@ -887,7 +887,7 @@ class AndroidBuild(BuildObject):
 
   @property
   def android_ndk_lib_dir(self):
-    if self.target_arch in ('armv6', 'armv7', 'x86', 'x64'):
+    if self.target_arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
       return os.path.join('usr', 'lib')
 
     if self.target_arch == 'x64':
@@ -1044,7 +1044,8 @@ class AndroidBuild(BuildObject):
       '-Wl,-wrap,realloc',
       '-Wl,-wrap,valloc',
       '-Wl,--gc-sections',
-      os.path.join(self.android_ndk_lib_dir, 'crtbegin_so.o'),
+      '-Wl,-soname={}'.format(library_name),
+      os.path.join(self.android_ndk_lib, 'crtbegin_so.o'),
     ]
 
     objs = self.pattern_files(os.path.join(self.build_output_path, 'obj'),
@@ -1061,7 +1062,7 @@ class AndroidBuild(BuildObject):
       '-ldl',
       '-lm',
       '-llog',
-      os.path.join(self.android_ndk_lib_dir, 'crtend_so.o'),
+      os.path.join(self.android_ndk_lib, 'crtend_so.o'),
     ])
 
     # armv6, armv7 arch leck of stack trace symbol in stl
