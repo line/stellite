@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "components/url_matcher/regex_set_matcher.h"
+#include "stellite/include/stellite_export.h"
 
 namespace url_matcher {
 class StringPattern;
@@ -30,7 +31,7 @@ namespace net {
 
 typedef std::vector<std::pair<std::string, std::string>> RewriteRules;
 
-class HttpRewrite {
+class STELLITE_EXPORT HttpRewrite {
  public:
   HttpRewrite();
   ~HttpRewrite();
@@ -49,10 +50,8 @@ class HttpRewrite {
   std::vector<const url_matcher::StringPattern*> pattern_list_;
   std::vector<std::string> replace_format_;
   url_matcher::RegexSetMatcher matcher_;
-
-  DISALLOW_COPY_AND_ASSIGN(HttpRewrite);
 };
 
 } // namespace net
 
-#endif  // STELLITE_FETCHER_HTTP_REWRITE_H_
+#endif

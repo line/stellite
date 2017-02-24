@@ -27,13 +27,10 @@
 #include "stellite/include/stellite_export.h"
 
 namespace base {
-
 class SingleThreadTaskRunner;
-
-}  // namespace base
+}
 
 namespace stellite {
-
 class HttpFetcherDelegate;
 class HttpRequestContextGetter;
 
@@ -45,7 +42,8 @@ class STELLITE_EXPORT HttpFetcher {
   int Request(const HttpRequest& request, int64_t timeout,
               base::WeakPtr<HttpFetcherTask::Visitor> delegate);
 
-  bool AppendChunkToUpload(int request_id, const std::string& data, bool fin);
+  bool AppendChunkToUpload(int request_id, const std::string& data,
+                           bool is_last_chunk);
 
   void CancelAll();
   void Cancel(int request_id);
@@ -64,8 +62,9 @@ class STELLITE_EXPORT HttpFetcher {
                     int64_t timeout,
                     base::WeakPtr<HttpFetcherTask::Visitor> delegate);
 
-  void StartAppendChunkToUpload(int request_id, const std::string& data,
-                                bool fin);
+  void StartAppendChunkToUpload(int request_id,
+                                const std::string& data,
+                                bool is_last_chunk);
 
   TaskMap task_map_; // task container
 
@@ -82,4 +81,4 @@ class STELLITE_EXPORT HttpFetcher {
 
 } // namespace net
 
-#endif  // STELLITE_FETCHER_HTTP_FETCHER_H_
+#endif

@@ -11,6 +11,5 @@
 group("root") {
   deps = [
     "//stellite:stellite",
-    "//node_binder:node_stellite",
   ]
 }

@@ -18,23 +18,25 @@
 #include "net/spdy/spdy_header_block.h"
 #include "net/spdy/spdy_protocol.h"
 #include "net/url_request/url_fetcher.h"
+#include "stellite/include/stellite_export.h"
 
 namespace net {
 
 class HttpRequestHeaders;
 
-URLFetcher::RequestType ParseMethod(const SpdyHeaderBlock& spdy_headers,
-                                    const SpdyMajorVersion spdy_version);
+URLFetcher::RequestType STELLITE_EXPORT ParseMethod(
+    const SpdyHeaderBlock& spdy_headers,
+    const SpdyMajorVersion spdy_version);
 
-std::string ParseHeader(const std::string& header_key,
-                        const SpdyHeaderBlock& spdy_headers,
-                        const SpdyMajorVersion spdy_version);
+std::string STELLITE_EXPORT ParseHeader(const std::string& header_key,
+                                        const SpdyHeaderBlock& spdy_headers,
+                                        const SpdyMajorVersion spdy_version);
 
-bool ConvertSpdyHeaderToHttpRequest(const SpdyHeaderBlock& spdy_headers,
-                                    const SpdyMajorVersion spdy_version,
-                                    HttpRequestHeaders* request_headers);
-
+bool STELLITE_EXPORT ConvertSpdyHeaderToHttpRequest(
+    const SpdyHeaderBlock& spdy_headers,
+    const SpdyMajorVersion spdy_version,
+    HttpRequestHeaders* request_headers);
 
 } // namespace net
 
-#endif  // STELLITE_FETCHER_SPDY_UTILS_H_
+#endif

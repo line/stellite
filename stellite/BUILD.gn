@@ -13,7 +13,7 @@ import("//build/config/features.gni")
 import("//build/config/ui.gni")
 import("//testing/test.gni")
 
-component("stellite") {
+source_set("stellite") {
   sources = [
     "fetcher/http_fetcher.cc",
     "fetcher/http_fetcher.h",
@@ -23,26 +23,24 @@ component("stellite") {
     "fetcher/http_fetcher_impl.h",
     "fetcher/http_fetcher_task.cc",
     "fetcher/http_fetcher_task.h",
-    "fetcher/http_request.cc",
     "fetcher/http_request_context_getter.cc",
     "fetcher/http_request_context_getter.h",
-    "fetcher/http_response.cc",
     "fetcher/http_rewrite.cc",
     "fetcher/http_rewrite.h",
     "fetcher/http_ssl_config_service.cc",
     "fetcher/http_ssl_config_service.h",
     "fetcher/spdy_utils.cc",
     "fetcher/spdy_utils.h",
+    "client/http_request.cc",
     "include/http_request.h",
-    "include/http_response.h",
   ]
 
   deps = [
     "//base",
-    "//build/config/sanitizers:deps",
-    "//components/url_matcher",
     "//net",
+    "//components/url_matcher",
     "//net:simple_quic_tools",
+    "//build/config/sanitizers:deps",
     "//third_party/boringssl",
     "//third_party/protobuf:protobuf_lite",
     "//third_party/re2",
@@ -120,13 +118,15 @@ component("stellite_http_client") {
     "client/http_client_context.cc",
     "client/http_client_impl.cc",
     "client/http_client_impl.h",
+    "client/http_response.cc",
     "client/http_session.cc",
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
-    "include/http_session",
+    "include/http_response.h",
     "include/logging.h",
     "include/stellite_export.h",
+    "include/http_session.h",
   ]
 
   defines = [
@@ -231,6 +231,8 @@ if (!is_ios && !is_android) {
   test("stellite_unittests") {
     sources = [
       "bin/run_all_unittests.cc",
+      "client/http_request_unittest.cc",
+      "client/http_response_unittest.cc",
       "fetcher/http_fetcher_quic_unittest.cc",
       "server/quic_proxy_server_unittest.cc",
       "test/stellite_test_suite.cc",

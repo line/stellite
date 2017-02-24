@@ -68,25 +68,22 @@ void HttpClientImpl::OnTaskComplete(int request_id,
 
   std::string payload;
   source->GetResponseAsString(&payload);
-  DCHECK(response_delegate_);
   response_delegate_->OnHttpResponse(request_id, *http_response,
                                      payload.data(), payload.size());
 
   ReleaseResponse(request_id);
 }
 
-void HttpClientImpl::OnTaskHeader(int request_id,
-                                  const net::URLFetcher* source,
-                                  const net::HttpResponseInfo* response_info) {
-  NewResponse(request_id, source, response_info);
-}
-
 void HttpClientImpl::OnTaskStream(int request_id,
+                                  const net::URLFetcher* source,
+                                  const net::HttpResponseInfo* response_info,
                                   const char* data, size_t len, bool fin) {
-  HttpResponse* http_response = FindResponse(request_id);
-  DCHECK(http_response);
 
-  DCHECK(response_delegate_);
+  HttpResponse* http_response = FindResponse(request_id);
+  if (!http_response) {
+    http_response = NewResponse(request_id, source, response_info);
+  }
+
   response_delegate_->OnHttpStream(request_id, *http_response, data, len, fin);
 
   if (fin) {
@@ -109,6 +106,7 @@ HttpResponse* HttpClientImpl::FindResponse(int request_id) {
 HttpResponse* HttpClientImpl::NewResponse(
     int request_id, const net::URLFetcher* source,
     const net::HttpResponseInfo* response_info) {
+
   if (source == nullptr) {
     return nullptr;
   }
@@ -173,6 +171,7 @@ void HttpClientImpl::ReleaseResponse(int request_id) {
   response_map_.erase(it);
 }
 
-void HttpClientImpl::TearDown() {}
+void HttpClientImpl::TearDown() {
+}
 
 } // namespace stellite

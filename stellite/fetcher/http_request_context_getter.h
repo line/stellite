@@ -17,8 +17,9 @@
 
 #include "base/compiler_specific.h"
 #include "base/memory/ref_counted.h"
-#include "net/url_request/url_request_context_getter.h"
 #include "net/url_request/url_request_context_builder.h"
+#include "net/url_request/url_request_context_getter.h"
+#include "stellite/include/stellite_export.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -30,7 +31,8 @@ class URLRequestContext;
 
 namespace stellite {
 
-class HttpRequestContextGetter : public net::URLRequestContextGetter {
+class STELLITE_EXPORT HttpRequestContextGetter
+    : public net::URLRequestContextGetter {
  public:
   struct Params {
     Params();
