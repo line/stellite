@@ -50,11 +50,9 @@ class STELLITE_EXPORT HttpClientImpl : public HttpClient,
                       const net::URLFetcher* source,
                       const net::HttpResponseInfo* response_info) override;
 
-  void OnTaskHeader(int reqeust_id,
-                    const net::URLFetcher* source,
-                    const net::HttpResponseInfo* response_info) override;
-
   void OnTaskStream(int request_id,
+                    const net::URLFetcher* source,
+                    const net::HttpResponseInfo* response_info,
                     const char* data, size_t len, bool fin) override;
 
   void OnTaskError(int request_id,

@@ -21,6 +21,7 @@
 #include "base/macros.h"
 #include "net/base/net_export.h"
 #include "net/url_request/url_fetcher.h"
+#include "stellite/include/stellite_export.h"
 
 namespace net {
 class HttpFetcherCore;
@@ -30,7 +31,7 @@ namespace stellite {
 class HttpFetcherDelegate;
 class URLFetcherFactory;
 
-class NET_EXPORT_PRIVATE HttpFetcherImpl : public net::URLFetcher {
+class STELLITE_EXPORT HttpFetcherImpl : public net::URLFetcher {
  public:
   // |url| is the URL to send the request to.
   // |request_type| is the type of request to make.

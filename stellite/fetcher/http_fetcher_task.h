@@ -36,7 +36,7 @@ class URLRequestContextGetter;
 
 class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
  public:
-  class Visitor {
+  class STELLITE_EXPORT Visitor {
    public:
     virtual ~Visitor() {}
 
@@ -44,11 +44,9 @@ class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
                                 const net::URLFetcher* source,
                                 const net::HttpResponseInfo* response_info) = 0;
 
-    virtual void OnTaskHeader(int request_id,
-                              const net::URLFetcher* source,
-                              const net::HttpResponseInfo* response_info) = 0;
-
     virtual void OnTaskStream(int request_id,
+                              const net::URLFetcher* source,
+                              const net::HttpResponseInfo* response_info,
                               const char* data, size_t len, bool fin) = 0;
 
     virtual void OnTaskError(int request_id,
@@ -69,10 +67,9 @@ class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
   void OnFetchComplete(const net::URLFetcher* source,
                        const net::HttpResponseInfo* response_info) override;
 
-  void OnFetchHeader(const net::URLFetcher* source,
-                     const net::HttpResponseInfo* response_info) override;
-
-  void OnFetchStream(const char* data, size_t len, bool fin) override;
+  void OnFetchStream(const net::URLFetcher* source,
+                     const net::HttpResponseInfo* response_info,
+                     const char* data, size_t len, bool fin) override;
 
   void OnFetchTimeout();
 
@@ -85,20 +82,8 @@ class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
   }
 
  private:
-  enum State {
-    STATE_IDLE,
-    STATE_STARTED,
-    STATE_COMPLETE,
-    STATE_CANCEL,
-  };
-
   HttpFetcher* http_fetcher_; /* not owned */
   int request_id_;
-
-  State state_;
-
-  bool is_chunked_upload_;
-  bool is_stream_response_;
 
   base::WeakPtr<Visitor> visitor_;
   std::unique_ptr<HttpFetcherImpl> url_fetcher_;
