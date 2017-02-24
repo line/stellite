@@ -198,6 +198,7 @@ ANDROID_DEPENDENCY_DIRECTORIES = [
   'third_party/catapult',
   'third_party/ced',
   'third_party/closure_compiler',
+  'third_party/colorama',
   'third_party/drmemory',
   'third_party/guava',
   'third_party/hamcrest',
@@ -647,6 +648,10 @@ class BuildObject(object):
 
   def execute_with_error(self, command, env=None, cwd=None):
     env = env or os.environ.copy()
+    env_path = self.depot_tools_path
+    if env.get('PATH'):
+      env_path = '{}:{}'.format(env.get('PATH'), self.depot_tools_path)
+    env['PATH'] = env_path
     print('Running: %s' % (' '.join(pipes.quote(x) for x in command)))
 
     job = subprocess.Popen(command, env=env, cwd=cwd)
@@ -1025,7 +1030,7 @@ class AndroidBuild(BuildObject):
 
   @property
   def android_ndk_lib_dir(self):
-    if self.target_arch in ('armv6', 'armv7', 'x86', 'x64'):
+    if self.target_arch in ('armv6', 'armv7', 'arm64', 'x86'):
       return os.path.join('usr', 'lib')
 
     if self.target_arch == 'x64':
@@ -1181,6 +1186,8 @@ class AndroidBuild(BuildObject):
       '-Wl,-wrap,realloc',
       '-Wl,-wrap,valloc',
       '-Wl,--gc-sections',
+      '-Wl,-soname={}'.format(library_name),
+      os.path.join(self.android_ndk_lib, 'crtbegin_so.o'),
     ]
 
     objs = self.pattern_files(os.path.join(self.build_output_path, 'obj'),
@@ -1196,7 +1203,8 @@ class AndroidBuild(BuildObject):
       '-lc',
       '-ldl',
       '-lm',
-      '-llog'
+      '-llog',
+      os.path.join(self.android_ndk_lib, 'crtend_so.o'),
     ])
 
     # armv6, armv7 arch leck of stack trace symbol in stl
