@@ -195,6 +195,7 @@ ANDROID_DEPENDENCY_DIRECTORIES = [
   'third_party/catapult',
   'third_party/ced',
   'third_party/closure_compiler',
+  'third_party/colorama',
   'third_party/drmemory',
   'third_party/guava',
   'third_party/hamcrest',
@@ -891,7 +892,7 @@ class AndroidBuild(BuildObject):
 
   @property
   def android_ndk_lib_dir(self):
-    if self.target_arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
+    if self.target_arch in ('armv6', 'armv7', 'arm64', 'x86'):
       return os.path.join('usr', 'lib')
 
     if self.target_arch == 'x64':
