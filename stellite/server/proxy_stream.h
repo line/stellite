@@ -50,9 +50,11 @@ class NET_EXPORT ProxyStream : public QuicSimpleServerStream,
   void OnTaskComplete(int request_id, const URLFetcher* source,
                       const HttpResponseInfo* response_info) override;
 
-  void OnTaskStream(int request_id, const URLFetcher* source,
-                    const HttpResponseInfo* response_info,
-                    const char* data, size_t len, bool fin) override;
+  void OnTaskHeader(int request_id, const URLFetcher* source,
+                    const HttpResponseInfo* response_info) override;
+
+  void OnTaskStream(int request_id, const char* data, size_t len,
+                    bool fin) override;
 
   void OnTaskError(int request_id, const URLFetcher* source,
                    int error_code) override;

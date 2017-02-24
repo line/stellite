@@ -73,6 +73,8 @@ void HttpFetcher::StartRequest(int request_id,
                                const HttpRequest& http_request,
                                int64_t timeout,
                                base::WeakPtr<HttpFetcherTask::Visitor> d) {
+  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
+
   if (!GURL(http_request.url).is_valid()) {
     if (d.get()) {
       d->OnTaskError(request_id, nullptr, net::ERR_INVALID_URL);
@@ -87,8 +89,9 @@ void HttpFetcher::StartRequest(int request_id,
 }
 
 void HttpFetcher::StartAppendChunkToUpload(int request_id,
-                                           const std::string& data,
-                                           bool is_last_chunk) {
+                                           const std::string& data, bool fin) {
+  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
+
   TaskMap::iterator it = task_map_.find(request_id);
   if (it == task_map_.end()) {
     LOG(ERROR) << "invalid request_id for append chunk upload";
@@ -96,21 +99,25 @@ void HttpFetcher::StartAppendChunkToUpload(int request_id,
   }
 
   HttpFetcherTask* task = it->second.get();
+  HttpFetcherTask::Visitor* visitor = task->visitor();
   if (!data.size()) {
-    HttpFetcherTask::Visitor* visitor = task->visitor();
     if (visitor) {
       visitor->OnTaskError(request_id, task->url_fetcher(),
                            net::ERR_INVALID_ARGUMENT);
     }
-
     return;
   }
 
   net::URLFetcher* source = task->url_fetcher();
-  source->AppendChunkToUpload(data, is_last_chunk);
+  if (source) {
+    source->AppendChunkToUpload(data, fin);
+  } else {
+    LOG(ERROR) << "try upload chunk but source task is not initialized";
+  }
 }
 
 void HttpFetcher::Cancel(int request_id) {
+  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
   HttpFetcherTask* task = FindTask(request_id);
   if (task == nullptr) {
     return;
@@ -120,17 +127,23 @@ void HttpFetcher::Cancel(int request_id) {
 }
 
 void HttpFetcher::CancelAll() {
+  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
   while (!task_map_.empty()) {
     (task_map_.begin()->second.get())->Stop();
   }
 }
 
 HttpFetcherTask* HttpFetcher::FindTask(int request_id) {
+  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
   TaskMap::iterator it = task_map_.find(request_id);
   return it != task_map_.end() ? it->second.get() : nullptr;
 }
 
 void HttpFetcher::OnTaskComplete(int request_id) {
+  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
+  if (task_map_.find(request_id) == task_map_.end()) {
+    return;
+  }
   task_map_.erase(request_id);
 }
 

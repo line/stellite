@@ -302,16 +302,13 @@ bool HttpRequestContextGetter::BuildContext(Params params) {
 
   if (params.cache_max_size > 0) {
     CHECK(params.using_disk_cache ^ params.using_memory_cache)
-        << "disk cache and memory cache option must exclusive";
+        << "disk cache and memory cache option must be exclusive";
 
     std::unique_ptr<net::HttpCache::BackendFactory> cache_backend;
     if (params.using_disk_cache) {
-      base::FilePath::StringType file_cache_path(
-        params.disk_cache_path.begin(),
-        params.disk_cache_path.end());
       cache_backend.reset(new net::HttpCache::DefaultBackend(
               net::DISK_CACHE, net::CACHE_BACKEND_DEFAULT,
-              base::FilePath(file_cache_path),
+              base::FilePath(params.disk_cache_path),
               params.cache_max_size, network_task_runner_));
     } else {
       cache_backend = net::HttpCache::DefaultBackend::InMemory(

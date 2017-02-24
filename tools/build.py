@@ -4,14 +4,17 @@
 
 import argparse
 import distutils.spawn
+import fnmatch
 import multiprocessing
 import os
-import fnmatch
+import pipes
 import platform
 import shutil
 import subprocess
 import sys
-import pipes
+import tarfile
+import tempfile
+import urllib2
 
 ALL = 'all'
 ANDROID = 'android'
@@ -26,19 +29,24 @@ EXECUTABLE = 'executable'
 IOS = 'ios'
 LINUX = 'linux'
 MAC = 'mac'
+NODE_MODULE = 'node_module'
+NODE_STELLITE = 'node_stellite'
 QUIC_CLIENT = 'quic_client'
 SHARED_LIBRARY = 'shared_library'
 SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN = 'simple_chunked_upload_client_bin'
 STATIC_LIBRARY = 'static_library'
 STELLITE_HTTP_CLIENT = 'stellite_http_client'
 STELLITE_HTTP_CLIENT_BIN = 'stellite_http_client_bin'
+STELLITE_HTTP_SESSION = 'stellite_http_session'
 STELLITE_HTTP_SESSION_BIN = 'stellite_http_session_bin'
 STELLITE_QUIC_SERVER_BIN = 'stellite_quic_server_bin'
+TARGET_ARCH = 'target_arch'
 UBUNTU = 'ubuntu'
 UNITTEST = 'unittest'
 WINDOWS = 'windows'
 
 GIT_DEPOT = 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
+NODE_MODULE_NAME = 'stellite.node'
 
 GCLIENT_IOS = """
 solutions = [
@@ -76,14 +84,12 @@ disable_ftp_support = true
 is_component_build = false
 target_cpu = "x64"
 target_os = "linux"
-is_debug = false
 """
 
 GN_ARGS_MAC = """
 disable_file_support = true
 disable_ftp_support = true
 is_component_build = false
-is_debug = false
 target_cpu = "x64"
 target_os = "mac"
 """
@@ -95,10 +101,9 @@ enable_dsyms = false
 enable_stripping = enable_dsyms
 ios_enable_code_signing = false
 is_component_build = false
-is_debug = false
 is_official_build = false
 symbol_level = 1
-target_cpu = "{}"
+target_cpu = "{target_cpu}"
 target_os = "ios"
 use_xcode_clang = is_official_build
 """
@@ -108,15 +113,13 @@ disable_file_support = true
 disable_ftp_support = true
 is_clang = true
 is_component_build = false
-is_debug = false
 symbol_level = 1
-target_cpu = "{}"
+target_cpu = "{target_cpu}"
 target_os = "android"
 """
 
 GN_ARGS_WINDOWS = """
 is_component_build = {}
-is_debug = false
 symbol_level = 1
 target_cpu = "x64"
 target_os = "win"
@@ -257,29 +260,33 @@ WINDOWS_DEPENDENCY_DIRECTORIES= [
   'third_party/tlslite',
   'third_party/yasm',
   'third_party/zlib',
-  'third_party/WebKit',
   'tools',
   'url',
   'v8',
 ]
 
 MAC_EXCLUDE_OBJECTS = [
-  'protobuf/protobuf_full/zero_copy_stream_impl_lite.o',
-  'protobuf/protobuf_full/zero_copy_stream.o',
-  'protobuf/protobuf_full/wire_format_lite.o',
-  'protobuf/protobuf_full/strutil.o',
-  'protobuf/protobuf_full/structurally_valid.o',
-  'protobuf/protobuf_full/stringpiece.o',
-  'protobuf/protobuf_full/repeated_field.o',
-  'protobuf/protobuf_full/once.o',
-  'protobuf/protobuf_full/stringprintf.o',
-  'protobuf/protobuf_full/message_lite.o',
-  'protobuf/protobuf_full/generated_message_util.o',
-  'protobuf/protobuf_full/extension_set.o',
   'protobuf/protobuf_full/arena.o',
-  'protobuf/protobuf_full/common.o',
-  'protobuf/protobuf_full/coded_stream.o',
   'protobuf/protobuf_full/arenastring.o',
+  'protobuf/protobuf_full/coded_stream.o',
+  'protobuf/protobuf_full/common.o',
+  'protobuf/protobuf_full/extension_set.o',
+  'protobuf/protobuf_full/generated_message_util.o',
+  'protobuf/protobuf_full/message_lite.o',
+  'protobuf/protobuf_full/once.o',
+  'protobuf/protobuf_full/repeated_field.o',
+  'protobuf/protobuf_full/stringpiece.o',
+  'protobuf/protobuf_full/stringprintf.o',
+  'protobuf/protobuf_full/structurally_valid.o',
+  'protobuf/protobuf_full/strutil.o',
+  'protobuf/protobuf_full/time.o',
+  'protobuf/protobuf_full/wire_format_lite.o',
+  'protobuf/protobuf_full/zero_copy_stream.o',
+  'protobuf/protobuf_full/zero_copy_stream_impl_lite.o',
+  'protobuf/protobuf_full/statusor.o',
+  'protobuf/protobuf_full/status.o',
+  'protobuf/protobuf_full/bytestream.o',
+  'protobuf/protobuf_full/int128.o',
 ]
 
 IOS_EXCLUDE_OBJECTS = [
@@ -307,6 +314,15 @@ ANDROID_EXCLUDE_OBJECTS = [
 LINUX_EXCLUDE_OBJECTS = [
   'libprotobuf_full.a',
 ]
+
+NODE_VERSIONS = {
+  '46': '4.2.0',
+  '47': '5.3.0',
+  '48': '6.9.0',
+  '51': '7.4.0',
+}
+
+DEFAULT_NODE_MODULE_VERSION = '46'
 
 def detect_host_platform():
   """detect host architecture"""
@@ -336,31 +352,38 @@ def option_parser(args):
                       default=host_platform)
 
   parser.add_argument('--target',
-                      choices=[
-                        CLIENT_BINDER,
-                        SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN,
-                        STELLITE_HTTP_CLIENT,
-                        STELLITE_HTTP_CLIENT_BIN,
-                        STELLITE_HTTP_SESSION_BIN,
-                        STELLITE_QUIC_SERVER_BIN,
-                      ],
+                      choices=[STELLITE_QUIC_SERVER_BIN,
+                               CLIENT_BINDER,
+                               SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN,
+                               STELLITE_HTTP_CLIENT,
+                               STELLITE_HTTP_CLIENT_BIN,
+                               STELLITE_HTTP_SESSION,
+                               STELLITE_HTTP_SESSION_BIN,
+                               NODE_STELLITE],
                       default=STELLITE_HTTP_CLIENT)
 
   parser.add_argument('--target-type',
-                      choices=[STATIC_LIBRARY, SHARED_LIBRARY, EXECUTABLE],
+                      choices=[STATIC_LIBRARY, SHARED_LIBRARY, EXECUTABLE,
+                               NODE_MODULE],
                       default=STATIC_LIBRARY)
 
   parser.add_argument('--chromium-path', default=None)
 
   parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
+  parser.add_argument('--debug', action='store_true', help='debugging mode')
+
+  parser.add_argument('--node-module-version', choices=NODE_VERSIONS.keys(),
+                      default=DEFAULT_NODE_MODULE_VERSION)
+
   parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
   options = parser.parse_args(args)
 
-  if options.target in (STELLITE_QUIC_SERVER_BIN,
-                        STELLITE_HTTP_CLIENT_BIN,
-                        STELLITE_HTTP_SESSION_BIN,
+  if options.target in (STELLITE_QUIC_SERVER_BIN, STELLITE_HTTP_CLIENT_BIN,
                         SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN):
     options.target_type = EXECUTABLE
+
+  if options.target == NODE_STELLITE:
+    options.target_type = NODE_MODULE
 
   if options.target in (STELLITE_HTTP_CLIENT):
     if not options.target_type in (STATIC_LIBRARY, SHARED_LIBRARY):
@@ -381,35 +404,29 @@ def option_parser(args):
     print('android build must built on ubuntu/linux')
     sys.exit(1)
 
+  if not options.node_module_version in NODE_VERSIONS.iterkeys():
+    print('{} is not supported node module version')
+    sys.exit(1)
+
   return options
 
 
 def build_object(options):
+  kwargs = dict(options._get_kwargs())
   if options.target_platform == ANDROID:
-    return AndroidBuild(options.target,
-                        options.target_type,
-                        verbose=options.verbose,
-                        chromium_path=options.chromium_path)
+    return AndroidBuild(**kwargs)
 
   if options.target_platform == MAC:
-    return MacBuild(options.target, options.target_type,
-                    verbose=options.verbose,
-                    chromium_path=options.chromium_path)
+    return MacBuild(**kwargs)
 
   if options.target_platform == IOS:
-    return IOSBuild(options.target, options.target_type,
-                    verbose=options.verbose,
-                    chromium_path=options.chromium_path)
+    return IOSBuild(**kwargs)
 
   if options.target_platform == LINUX:
-    return LinuxBuild(options.target, options.target_type,
-                      verbose=options.verbose,
-                      chromium_path=options.chromium_path)
+    return LinuxBuild(**kwargs)
 
   if options.target_platform == WINDOWS:
-    return WindowsBuild(options.target, options.target_type,
-                        verbose=options.verbose,
-                        chromium_path=options.chromium_path)
+    return WindowsBuild(**kwargs)
 
   raise Exception('unsupported target_platform: {}'.format(options.target_type))
 
@@ -435,23 +452,40 @@ def copy_tree(src, dest):
 class BuildObject(object):
   """build stellite client and server"""
 
-  def __init__(self, target, target_type, target_platform, verbose=False,
-               chromium_path=None):
-    self._target = target
-    self._target_type = target_type
-    self._target_platform = target_platform
-    self._verbose = verbose
+  def __init__(self, action=None, chromium_path=None, debug=False,
+               node_module_version=None, target=None, target_arch=None,
+               target_platform=None, target_type=None, verbose=False):
+    self._action = action
     self._chromium_path = chromium_path
+    self._debug = debug
+    self._node_module_version = node_module_version
+    self._target = target
+    self._target_arch = target_arch
+    self._target_platform = target_platform
+    self._target_type = target_type
+    self._verbose = verbose
 
     self.fetch_depot_tools()
+
+  @property
+  def action(self):
+    return self._action
 
   @property
   def verbose(self):
     return self._verbose
 
   @property
+  def debug(self):
+    return self._debug
+
+  @property
   def target(self):
     return self._target
+
+  @property
+  def target_arch(self):
+    return self._target_arch
 
   @property
   def target_type(self):
@@ -496,6 +530,18 @@ class BuildObject(object):
     return os.path.join(self.buildspace_path, 'src')
 
   @property
+  def buildspace_stellite_path(self):
+    return os.path.join(self.buildspace_src_path, 'stellite')
+
+  @property
+  def buildspace_node_binder_path(self):
+    return os.path.join(self.buildspace_src_path, 'node_binder')
+
+  @property
+  def buildspace_node_path(self):
+    return os.path.join(self.buildspace_src_path, 'node')
+
+  @property
   def gn_path(self):
     """return gn path"""
     return os.path.join(self.depot_tools_path, 'gn')
@@ -512,9 +558,35 @@ class BuildObject(object):
     return os.path.join(self.root_path, 'stellite')
 
   @property
+  def node_binder_path(self):
+    """return node binder code path"""
+    return os.path.join(self.root_path, 'node_binder')
+
+  @property
+  def node_root_path(self):
+    """return node root directory"""
+    return os.path.join(self.third_party_path,
+                        'node_{}'.format(detect_host_platform()))
+
+  @property
+  def node_path(self):
+    """return nodejs path"""
+    return os.path.join(self.node_root_path, str(self.node_module_version))
+
+  @property
+  def node_include_path(self):
+    """nodejs include path"""
+    return os.path.join(self.node_path, 'include', 'node')
+
+  @property
   def modified_files_path(self):
     """return modified_files path"""
     return os.path.join(self.root_path, 'modified_files')
+
+  @property
+  def node_modified_files_path(self):
+    "return node_modified_files path"""
+    return os.path.join(self.root_path, 'node_modified_files')
 
   @property
   def chromium_path(self):
@@ -562,6 +634,10 @@ class BuildObject(object):
     include_path = os.path.join(self.stellite_path, 'include')
     return map(lambda x: os.path.join(include_path, x),
                os.listdir(include_path))
+
+  @property
+  def node_module_version(self):
+    return self._node_module_version
 
   def xcode_sdk_path(self, osx_target):
     """return xcode sdk path"""
@@ -613,8 +689,54 @@ class BuildObject(object):
 
     return self.fetch_toolchain()
 
+  def fetch_node(self):
+    """fetch nodejs"""
+    for tag, version in NODE_VERSIONS.iteritems():
+      node_path = os.path.join(self.node_root_path, str(tag))
+      if os.path.exists(node_path):
+        continue
+      os.makedirs(node_path)
+
+      try:
+        temp_dir = tempfile.mkdtemp(dir=self.root_path)
+        self.install_node(temp_dir, tag, version)
+      finally:
+        shutil.rmtree(temp_dir)
+
   def fetch_toolchain(self):
     """fetch build toolchain"""
+    return True
+
+  def install_node(self, temp_dir, node_tag, node_version):
+    """install nodejs"""
+    if not self.target_platform in (MAC, LINUX):
+      return
+
+    if self.target_platform == MAC:
+      node_target = 'node-v{}-darwin-x64.tar.gz'.format(node_version)
+    elif self.target_platform == LINUX:
+      node_target = 'node-v{}-linux-x64.tar.gz'.format(node_version)
+
+    url = 'https://nodejs.org/dist/v{}/{}'.format(node_version, node_target)
+    print('fetch {}'.format(url))
+
+    download_stream = urllib2.urlopen(url)
+    temp_file = os.path.join(temp_dir, node_target)
+    with open(temp_file, 'wb') as tar_stream:
+      while True:
+        chunk = download_stream.read(2 ** 20)
+        if not chunk:
+          break
+        tar_stream.write(chunk)
+
+    with tarfile.open(temp_file) as tar_interface:
+      tar_interface.extractall(path=temp_dir)
+
+    extract_path = os.path.join(temp_dir, node_target[:-len('.tar.gz')])
+    os.rename(extract_path, os.path.join(self.node_root_path, str(node_tag)))
+
+  def install_build_deps(self):
+    """execute chromium/src/build/install_build_deps.sh"""
     return True
 
   def remove_chromium(self):
@@ -628,6 +750,8 @@ class BuildObject(object):
   def generate_ninja_script(self, gn_args, gn_options=None):
     """generate ninja build script using gn."""
     gn_options = gn_options or []
+
+    gn_args += '\nis_debug = {}\n'.format('true' if self.debug else 'false')
 
     if not os.path.exists(self.build_output_path):
       os.makedirs(self.build_output_path)
@@ -746,21 +870,42 @@ class BuildObject(object):
     shutil.copy(os.path.join(self.chromium_src_path, '.gn'),
                 self.buildspace_src_path)
 
+    print('copy node_binder files ...')
+    self.copy_node_binder_code()
+
+    if self.target_type == NODE_MODULE:
+      print('copy node files ...')
+      self.copy_node_code()
+
+      print('copy node_modified_files ...')
+      copy_tree(self.node_modified_files_path, self.buildspace_src_path)
+
     print('copy stellite files...')
     self.copy_stellite_code()
 
   def copy_stellite_code(self):
     """copy stellite code to buildspace"""
-    stellite_buildspace_path = os.path.join(self.buildspace_src_path,
-                                            'stellite')
-    if os.path.exists(stellite_buildspace_path):
-      os.remove(stellite_buildspace_path)
+    if os.path.exists(self.buildspace_stellite_path):
+      os.remove(self.buildspace_stellite_path)
 
     command = ['ln', '-s', self.stellite_path]
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
+  def copy_node_binder_code(self):
+    """copy stellite code to buildspace"""
+    if os.path.exists(self.buildspace_node_binder_path):
+      os.remove(self.buildspace_node_binder_path)
+    command = ['ln', '-s', self.node_binder_path]
+    self.execute_with_error(command, cwd=self.buildspace_src_path)
+
+  def copy_node_code(self):
+    if os.path.exists(self.buildspace_node_path):
+      os.remove(self.buildspace_node_path)
+    command = ['ln', '-s', self.node_include_path, 'node']
+    self.execute_with_error(command, cwd=self.buildspace_src_path)
+
   def build_target(self, target):
-    command = [os.path.join(self.depot_tools_path, 'ninja')]
+    command = ['ninja']
     if self.verbose:
       command.append('-v')
     command.extend(['-C', self.build_output_path, target])
@@ -809,16 +954,9 @@ class BuildObject(object):
 
 class AndroidBuild(BuildObject):
   """android build"""
-  def __init__(self, target, target_type, verbose=False, target_arch=None,
-               chromium_path=None):
-    self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(
-      target, target_type, ANDROID, verbose=verbose,
-      chromium_path=chromium_path)
-
-  @property
-  def target_arch(self):
-    return self._target_arch
+  def __init__(self, **kwargs):
+    super(self.__class__, self).__init__(**kwargs)
+    self._target_arch = kwargs.get(TARGET_ARCH, ALL)
 
   @property
   def build_output_path(self):
@@ -960,6 +1098,14 @@ class AndroidBuild(BuildObject):
                                  'obj', 'lib.java')
     return self.pattern_files(java_lib_path, '*.jar')
 
+  def install_build_deps(self):
+    """install android's build-deps-android.sh"""
+    command = [
+      os.path.join(self.chromium_src_path, 'build',
+                   'install-build-deps-android.sh')
+    ]
+    self.execute(command)
+
   def synchronize_buildspace(self):
     super(self.__class__, self).synchronize_buildspace()
     buildspace_src = os.path.join(self.buildspace_path, 'src')
@@ -983,15 +1129,6 @@ class AndroidBuild(BuildObject):
     if arch == 'armv7':
       return 'arm_version = 7'
     return ''
-
-  def package_target(self):
-    if self.target_type == STATIC_LIBRARY:
-      return self.link_static_library()
-
-    if self.target_type == SHARED_LIBRARY:
-      return self.link_shared_library()
-
-    raise Exception('invalid package target')
 
   def fetch_toolchain(self):
     self.write_gclient(GCLIENT_ANDROID)
@@ -1082,29 +1219,36 @@ class AndroidBuild(BuildObject):
     return library_path
 
   def build(self):
-    output_list = []
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      gn_context = GN_ARGS_ANDROID.format(self.clang_arch(arch))
-      gn_context += '\n' + self.appendix_gn_args(arch)
-
-      build = AndroidBuild(self.target, self.target_type, target_arch=arch,
-                           verbose=self.verbose,
+      build = AndroidBuild(action=self.action, target=self.target,
+                           target_type=self.target_type, target_arch=arch,
+                           verbose=self.verbose, debug=self.debug,
                            chromium_path=self.chromium_path)
+
+      gn_context = GN_ARGS_ANDROID.format(target_cpu=self.clang_arch(arch))
+      gn_context += '\n' + self.appendix_gn_args(arch)
       build.generate_ninja_script(gn_args=gn_context)
+
       build.build_target(self.target)
-      output_list.append(build.package_target())
 
-    if self.target == STELLITE_HTTP_CLIENT:
-      output_list.extend(self.stellite_http_client_header_files)
-
-    output_list.extend(self.chromium_java_lib_deps)
-
-    return output_list
+  def package_target(self):
+    output_files = []
+    for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
+      build = AndroidBuild(action=self.action, target=self.target,
+                           target_type=self.target_type, target_arch=arch,
+                           verbose=self.verbose, debug=self.debug,
+                           chromium_path=self.chromium_path)
+      if build.target_type == STATIC_LIBRARY:
+        output_files.append(build.link_static_library())
+      if build.target_type == SHARED_LIBRARY:
+        output_files.append(build.link_shared_library())
+    return output_files
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      build = AndroidBuild(self.target, self.target_type, target_arch=arch,
-                           verbose=self.verbose,
+      build = AndroidBuild(action=self.action, target=self.target,
+                           target_type=self.target_type, target_arch=arch,
+                           verbose=self.verbose, debug=self.debug,
                            chromium_path=self.chromium_path)
       if not os.path.exists(build.build_output_path):
         continue
@@ -1116,32 +1260,26 @@ class AndroidBuild(BuildObject):
 
 class MacBuild(BuildObject):
   """mac build"""
-  def __init__(self, target, target_type, verbose=False, chromium_path=None):
-    super(self.__class__, self).__init__(target, target_type, MAC,
-                                         verbose=verbose,
-                                         chromium_path=chromium_path)
+  def __init__(self, **kwargs):
+    super(self.__class__, self).__init__(**kwargs)
 
   def build(self):
-    self.generate_ninja_script(GN_ARGS_MAC)
+    gn_args = GN_ARGS_MAC
+    self.generate_ninja_script(gn_args)
     self.build_target(self.target)
-
-    if self.target_type == EXECUTABLE:
-      return [os.path.join(self.build_output_path, self.target)]
-
-    output_list = []
-    output_list.append(self.package_target())
-
-    if self.target == STELLITE_HTTP_CLIENT:
-      output_list.extend(self.stellite_http_client_header_files)
-
-    return output_list
 
   def package_target(self):
     if self.target_type == SHARED_LIBRARY:
-      return self.link_shared_library()
+      return [self.link_shared_library()]
 
     if self.target_type == STATIC_LIBRARY:
-      return self.link_static_library()
+      return [self.link_static_library()]
+
+    if self.target_type == NODE_MODULE:
+      return [self.link_node_module()]
+
+    if self.target_type == EXECUTABLE:
+      return [os.path.join(self.build_output_path, self.target)]
 
     raise Exception('undefined target_type error: {}'.format(self.target_type))
 
@@ -1157,7 +1295,7 @@ class MacBuild(BuildObject):
 
     for filename in self.pattern_files(self.build_output_path, '*.o',
                                        MAC_EXCLUDE_OBJECTS):
-      command.append('-Wl,-force_load,{}'.format(filename))
+      command.append(filename)
 
     library_name = 'lib{}_{}.dylib'.format(self.target, self.target_platform)
     library_path = os.path.join(self.build_output_path, library_name)
@@ -1198,6 +1336,41 @@ class MacBuild(BuildObject):
     self.execute(command)
     return library_path
 
+  def link_node_module(self):
+    command = [
+      self.clang_compiler_path,
+      '-bundle',
+      '-undefined', 'dynamic_lookup',
+      '-Wl,-search_paths_first',
+      '-Wl,-dead_strip',
+      '-isysroot', self.mac_sdk_path,
+      '-arch', 'x86_64',
+    ]
+    for filename in self.pattern_files(self.build_output_path, '*.o',
+                                       MAC_EXCLUDE_OBJECTS):
+      command.append(filename)
+
+    library_name = 'stellite.node'
+    library_path = os.path.join(self.build_output_path, library_name)
+    command.extend([
+      '-o', library_path,
+      '-stdlib=libc++',
+      '-lresolv',
+      '-lbsm',
+      '-framework', 'AppKit',
+      '-framework', 'ApplicationServices',
+      '-framework', 'Carbon',
+      '-framework', 'CoreFoundation',
+      '-framework', 'Foundation',
+      '-framework', 'IOKit',
+      '-framework', 'Security',
+      '-framework', 'SystemConfiguration'
+    ])
+
+    self.execute(command, cwd=self.build_output_path)
+    return library_path
+
+
   def unittest(self):
     gn_arguments = '\n'.join([GN_ARGS_MAC, 'is_asan = true'])
     self.generate_ninja_script(gn_arguments)
@@ -1214,15 +1387,9 @@ class MacBuild(BuildObject):
 
 class IOSBuild(BuildObject):
   """ios build"""
-  def __init__(self, target, target_type, target_arch=None, verbose=False,
-               chromium_path=None):
-    self._target_arch = target_arch or ALL
-    super(self.__class__, self).__init__(
-      target, target_type, IOS, verbose=verbose, chromium_path=chromium_path)
-
-  @property
-  def target_arch(self):
-    return self._target_arch
+  def __init__(self, **kwargs):
+    super(self.__class__, self).__init__(**kwargs)
+    self._target_arch = kwargs.get(TARGET_ARCH, ALL)
 
   @property
   def build_output_path(self):
@@ -1247,22 +1414,16 @@ class IOSBuild(BuildObject):
     return True
 
   def build(self):
-    lib_list = []
     for arch in ('x86', 'x64', 'arm', 'arm64'):
-      build = IOSBuild(self.target, self.target_type, target_arch=arch,
-                       verbose=self.verbose, chromium_path=self.chromium_path)
-      build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(arch),
+      build = IOSBuild(action=self.action, target=self.target,
+                       target_arch=arch,
+                       target_type=self.target_type,
+                       target_platform=self.target_platform,
+                       verbose=self.verbose, debug=self.debug,
+                       chromium_path=self.chromium_path)
+      build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(target_cpu=arch),
                                   gn_options=['--check'])
       build.build_target(self.target)
-      lib_list.append(build.package_target())
-
-    output_list = []
-    output_list.append(self.link_fat_library(lib_list))
-
-    if self.target == STELLITE_HTTP_CLIENT:
-      output_list.extend(self.stellite_http_client_header_files)
-
-    return output_list
 
   def clean(self):
     for arch in ('arm', 'arm64', 'x86', 'x64'):
@@ -1273,10 +1434,21 @@ class IOSBuild(BuildObject):
       shutil.rmtree(build.build_output_path)
 
   def package_target(self):
-    if self.target_type == STATIC_LIBRARY:
-      return self.link_static_library()
-    else:
-      return self.link_shared_library()
+    library_files = []
+    for arch in ('x86', 'x64', 'arm', 'arm64'):
+      build = IOSBuild(action=self.action, target=self.target,
+                       target_arch=arch,
+                       target_type=self.target_type,
+                       target_platform=self.target_platform,
+                       verbose=self.verbose, debug=self.debug,
+                       chromium_path=self.chromium_path)
+      if build.target_type == STATIC_LIBRARY:
+        library_files.append(build.link_static_library())
+
+      if build.target_type == SHARED_LIBRARY:
+        library_files.append(build.link_shared_library())
+
+    return [self.link_fat_library(library_files)]
 
   def link_shared_library(self):
     library_name = 'lib{}_{}.dylib'.format(self.target, self.target_arch)
@@ -1365,31 +1537,33 @@ class IOSBuild(BuildObject):
 
 class LinuxBuild(BuildObject):
   """linux build"""
-  def __init__(self, target, target_type, verbose=False, chromium_path=None):
-    super(self.__class__, self).__init__(target, target_type, LINUX,
-                                         verbose=verbose,
-                                         chromium_path=chromium_path)
+  def __init__(self, target, target_type, **kwargs):
+    super(self.__class__, self).__init__(target, target_type, LINUX, **kwargs)
+
+  def install_build_deps(self):
+    """execute chromium/src/build/install_build_deps.sh"""
+    command = [
+      os.path.join(self.chromium_src_path, 'build', 'install-build-deps.sh')
+    ]
+    self.execute(command)
+    return True
 
   def build(self):
     self.generate_ninja_script(GN_ARGS_LINUX)
     self.build_target(self.target)
 
-    if self.target_type == EXECUTABLE:
-      return [os.path.join(self.build_output_path, self.target)]
-
-    output_list = []
-    output_list.append(self.package_target())
-
-    if self.target == STELLITE_HTTP_CLIENT:
-      output_list.extend(self.stellite_http_client_header_files)
-
-    return output_list
-
   def package_target(self):
     if self.target_type == STATIC_LIBRARY:
-      return self.link_static_library()
+      return [self.link_static_library()]
+
     if self.target_type == SHARED_LIBRARY:
-      return self.link_shared_library()
+      return [self.link_shared_library()]
+
+    if self.target_type == NODE_MODULE:
+      return [self.link_node_module()]
+
+    if self.target_type == EXECUTABLE:
+      return [os.path.join(self.build_output_path, self.target)]
 
     raise Exception('invalid target type error')
 
@@ -1436,6 +1610,36 @@ class LinuxBuild(BuildObject):
     self.execute(command)
     return library_path
 
+  def link_node_module(self):
+    library_name = 'stellite.node'
+    library_path = os.path.join(self.build_output_path, library_name)
+
+    command = [
+      self.clang_compiler_path,
+      '-shared',
+      '-Wl,--fatal-warnings',
+      '-fPIC',
+      '-Wl,-z,noexecstack',
+      '-Wl,-z,now',
+      '-Wl,-z,relro',
+      '-Wl,--no-as-needed',
+      '-lpthread',
+      '-Wl,--as-needed',
+      '-fuse-ld=gold',
+      '-Wl,--icf=all',
+      '-pthread',
+      '-m64',
+      '-Wl,--export-dynamic',
+      '-o', library_path,
+      '-Wl,-soname="{}"'.format(library_name),
+    ]
+    for filename in self.pattern_files(self.build_output_path, '*.a',
+                                       LINUX_EXCLUDE_OBJECTS):
+      command.append(filename)
+
+    self.execute(command)
+    return library_path
+
   def fetch_toolchain(self):
     return True
 
@@ -1445,10 +1649,8 @@ class LinuxBuild(BuildObject):
 
 class WindowsBuild(BuildObject):
   """windows build"""
-  def __init__(self, target, target_type, verbose=False, chromium_path=None):
-    super(self.__class__, self).__init__(target, target_type, WINDOWS,
-                                         verbose=verbose,
-                                         chromium_path=chromium_path)
+  def __init__(self, target, target_type, **kwargs):
+    super(self.__class__, self).__init__(target, target_type, WINDOWS, **kwargs)
     self._vs_path = None
     self._vs_version = None
     self._sdk_path = None
@@ -1544,21 +1746,32 @@ class WindowsBuild(BuildObject):
 
   def copy_stellite_code(self):
     """copy stellite code to buildspace"""
-    stellite_buildspace_path = os.path.join(self.buildspace_src_path,
-                                            'stellite')
-    if os.path.exists(stellite_buildspace_path):
-      shutil.rmtree(stellite_buildspace_path)
-    copy_tree(self.stellite_path, stellite_buildspace_path)
+    if os.path.exists(self.buildspace_stellite_path):
+      shutil.rmtree(self.buildspace_stellite_path)
+    copy_tree(self.stellite_path, self.buildspace_stellite_path)
+
+  def copy_node_code(self):
+    """copy nodejs binder code to buildspace"""
+    if os.path.exists(self.buildspace_node_path):
+      shutil.rmtree(self.buildspace_node_path)
+    copy_tree(self.node_path, self.buildspace_node_path)
+
+  def copy_node_binder_code(self):
+    """copy nodejs binder code to buildspace"""
+    if os.path.exists(self.buildspace_node_binder_path):
+      shutil.rmtree(self.buildspace_node_binder_path)
+    copy_tree(self.node_binder_path, self.buildspace_node_binder_path)
 
   def package_target(self):
     output_files = []
     if self.target_type == STATIC_LIBRARY:
       output_files.extend(self.pattern_files(self.build_output_path, '*.lib'))
+
     if self.target_type == SHARED_LIBRARY:
       output_files.extend(self.pattern_files(self.build_output_path, '*.dll'))
 
-    if self.target == STELLITE_HTTP_CLIENT:
-      output_files.extend(self.stellite_http_client_header_files)
+    if self.target_type == EXECUTABLE:
+      return [os.path.join(self.build_output_path, self.target)]
 
     return output_files
 
@@ -1572,17 +1785,6 @@ class WindowsBuild(BuildObject):
   def unittest(self):
     pass
 
-  def fetch_depot_tools(self):
-    """get depot_tools code"""
-    if os.path.exists(self.depot_tools_path):
-      return
-
-    os.makedirs(self.depot_tools_path)
-    self.execute(['git', 'clone', GIT_DEPOT, self.depot_tools_path],
-                 cwd=self.depot_tools_path)
-    self.execute([
-      os.path.join(self.depot_tools_path, 'bootstrap', 'win', 'win_tools.bat')
-    ])
 
 def main(args):
   """main entry point"""
@@ -1598,15 +1800,27 @@ def main(args):
     return 0
 
   build.fetch_chromium()
+  build.install_build_deps()
   build.synchronize_chromium_tag()
   build.synchronize_buildspace()
+
+  if build.target_type == NODE_MODULE:
+    build.fetch_node()
 
   if options.action == BUILD:
     if os.path.exists(build.output_path):
       shutil.rmtree(build.output_path)
     os.makedirs(build.output_path)
 
-    output_files = build.build()
+    build.build()
+    output_files = build.package_target()
+
+    if build.target == STELLITE_HTTP_CLIENT:
+      output_files.extend(build.stellite_http_client_header_files)
+
+    if build.target_type == NODE_MODULE:
+      output_files.extend(build.pattern_files(build.node_binder_path, '*.js'))
+
     for output_file_path in output_files:
       shutil.copy(output_file_path, build.output_path)
     return 0
