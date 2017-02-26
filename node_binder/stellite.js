@@ -14,7 +14,7 @@
 
 "use strict";
 
-const stellite = require('../build_mac/src/out_mac/stellite.node');
+const stellite = require('./stellite.node');
 const IncomingRequest = require('./_incoming_request');
 const OutgoingResponse = require('./_outgoing_response');
 const IncomingResponse = require('./_incoming_response');

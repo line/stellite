@@ -53,9 +53,4 @@ static_library("node_stellite") {
     "//net:simple_quic_tools",
     "//stellite:stellite",
   ]
-
-  #defines = [
-  #  "COMPONENT_BUILD",
-  #  "STELLITE_IMPLEMENTATION",
-  #]
 }

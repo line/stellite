@@ -312,7 +312,28 @@ ANDROID_EXCLUDE_OBJECTS = [
 ]
 
 LINUX_EXCLUDE_OBJECTS = [
-  'libprotobuf_full.a',
+  'protobuf/protobuf_full/arena.o',
+  'protobuf/protobuf_full/arenastring.o',
+  'protobuf/protobuf_full/atomicops_internals_x86_gcc.o',
+  'protobuf/protobuf_full/bytestream.o',
+  'protobuf/protobuf_full/coded_stream.o',
+  'protobuf/protobuf_full/common.o',
+  'protobuf/protobuf_full/extension_set.o',
+  'protobuf/protobuf_full/generated_message_util.o',
+  'protobuf/protobuf_full/int128.o',
+  'protobuf/protobuf_full/message_lite.o',
+  'protobuf/protobuf_full/once.o',
+  'protobuf/protobuf_full/repeated_field.o',
+  'protobuf/protobuf_full/status.o',
+  'protobuf/protobuf_full/statusor.o',
+  'protobuf/protobuf_full/stringpiece.o',
+  'protobuf/protobuf_full/stringprintf.o',
+  'protobuf/protobuf_full/structurally_valid.o',
+  'protobuf/protobuf_full/strutil.o',
+  'protobuf/protobuf_full/time.o',
+  'protobuf/protobuf_full/wire_format_lite.o',
+  'protobuf/protobuf_full/zero_copy_stream.o',
+  'protobuf/protobuf_full/zero_copy_stream_impl_lite.o',
 ]
 
 NODE_VERSIONS = {
@@ -348,7 +369,7 @@ def option_parser(args):
   host_platform = detect_host_platform()
   parser.add_argument('--target-platform',
                       choices=[LINUX, ANDROID, IOS, MAC, WINDOWS],
-                      help='default platform {}'.format(host_platform),
+                      help='default platform: {}'.format(host_platform),
                       default=host_platform)
 
   parser.add_argument('--target',
@@ -466,6 +487,20 @@ class BuildObject(object):
     self._verbose = verbose
 
     self.fetch_depot_tools()
+
+  @property
+  def kwargs(self):
+    return {
+      'action': self.action,
+      'chromium_path': self.chromium_path,
+      'debug': self.debug,
+      'node_module_version': self.node_module_version,
+      'target': self.target,
+      'target_arch': self.target_arch,
+      'target_platform': self.target_platform,
+      'target_type': self.target_type,
+      'verbose': self.verbose,
+    }
 
   @property
   def action(self):
@@ -905,6 +940,9 @@ class BuildObject(object):
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def build_target(self, target):
+    if not target:
+      raise ValueError('invalid target: {}'.format(target))
+
     command = ['ninja']
     if self.verbose:
       command.append('-v')
@@ -1220,10 +1258,9 @@ class AndroidBuild(BuildObject):
 
   def build(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      build = AndroidBuild(action=self.action, target=self.target,
-                           target_type=self.target_type, target_arch=arch,
-                           verbose=self.verbose, debug=self.debug,
-                           chromium_path=self.chromium_path)
+      kwargs = self.kwargs
+      kwargs[TARGET_ARCH] = arch
+      build = AndroidBuild(**kwargs)
 
       gn_context = GN_ARGS_ANDROID.format(target_cpu=self.clang_arch(arch))
       gn_context += '\n' + self.appendix_gn_args(arch)
@@ -1234,10 +1271,9 @@ class AndroidBuild(BuildObject):
   def package_target(self):
     output_files = []
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      build = AndroidBuild(action=self.action, target=self.target,
-                           target_type=self.target_type, target_arch=arch,
-                           verbose=self.verbose, debug=self.debug,
-                           chromium_path=self.chromium_path)
+      kwargs = self.kwargs
+      kwargs[TARGET_ARCH] = arch
+      build = AndroidBuild(**kwargs)
       if build.target_type == STATIC_LIBRARY:
         output_files.append(build.link_static_library())
       if build.target_type == SHARED_LIBRARY:
@@ -1246,10 +1282,9 @@ class AndroidBuild(BuildObject):
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
-      build = AndroidBuild(action=self.action, target=self.target,
-                           target_type=self.target_type, target_arch=arch,
-                           verbose=self.verbose, debug=self.debug,
-                           chromium_path=self.chromium_path)
+      kwargs = self.kwargs
+      kwargs[TARGET_ARCH] = arch
+      build = AndroidBuild(**kwargs)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
@@ -1414,34 +1449,29 @@ class IOSBuild(BuildObject):
     return True
 
   def build(self):
+    kwargs = self.kwargs
     for arch in ('x86', 'x64', 'arm', 'arm64'):
-      build = IOSBuild(action=self.action, target=self.target,
-                       target_arch=arch,
-                       target_type=self.target_type,
-                       target_platform=self.target_platform,
-                       verbose=self.verbose, debug=self.debug,
-                       chromium_path=self.chromium_path)
+      kwargs[TARGET_ARCH] = arch
+      build = IOSBuild(**kwargs)
       build.generate_ninja_script(gn_args=GN_ARGS_IOS.format(target_cpu=arch),
                                   gn_options=['--check'])
       build.build_target(self.target)
 
   def clean(self):
+    kwargs = self.kwargs
     for arch in ('arm', 'arm64', 'x86', 'x64'):
-      build = IOSBuild(self.target, self.target_type, target_arch=arch,
-                       verbose=self.verbose, chromium_path=self.chromium_path)
+      kwargs[TARGET_ARCH] = arch
+      build = IOSBuild(**kwargs)
       if not os.path.exists(build.build_output_path):
         continue
       shutil.rmtree(build.build_output_path)
 
   def package_target(self):
     library_files = []
+    kwargs = self.kwargs
     for arch in ('x86', 'x64', 'arm', 'arm64'):
-      build = IOSBuild(action=self.action, target=self.target,
-                       target_arch=arch,
-                       target_type=self.target_type,
-                       target_platform=self.target_platform,
-                       verbose=self.verbose, debug=self.debug,
-                       chromium_path=self.chromium_path)
+      kwargs[TARGET_ARCH] = arch
+      build = IOSBuild(**kwargs)
       if build.target_type == STATIC_LIBRARY:
         library_files.append(build.link_static_library())
 
@@ -1537,8 +1567,8 @@ class IOSBuild(BuildObject):
 
 class LinuxBuild(BuildObject):
   """linux build"""
-  def __init__(self, target, target_type, **kwargs):
-    super(self.__class__, self).__init__(target, target_type, LINUX, **kwargs)
+  def __init__(self, **kwargs):
+    super(self.__class__, self).__init__(**kwargs)
 
   def install_build_deps(self):
     """execute chromium/src/build/install_build_deps.sh"""
@@ -1586,26 +1616,51 @@ class LinuxBuild(BuildObject):
     command = [
       self.clang_compiler_path,
       '-shared',
-      '-Wl,--fatal-warnings',
       '-fPIC',
+      '-fuse-ld=gold',
+      '-m64',
+      '-pthread',
+      '-Wl,--as-needed',
+      '-Wl,--export-dynamic',
+      '-Wl,--fatal-warnings',
+      '-Wl,--icf=all',
+      '-Wl,--no-as-needed',
       '-Wl,-z,noexecstack',
       '-Wl,-z,now',
       '-Wl,-z,relro',
-      '-Wl,--no-as-needed',
       '-lpthread',
-      '-Wl,--as-needed',
-      '-fuse-ld=gold',
-      '-Wl,--icf=all',
-      '-pthread',
-      '-m64',
-      '-Wl,--export-dynamic',
       '-o', library_path,
       '-Wl,-soname="{}"'.format(library_name),
+      '-Wl,--gc-sections',
+      '-Wl,-whole-archive',
+      '-Wl,--start-group',
     ]
 
-    for filename in self.pattern_files(self.build_output_path, '*.a',
+    for filename in self.pattern_files(self.build_output_path, '*.o',
                                        LINUX_EXCLUDE_OBJECTS):
       command.append(filename)
+
+    command.extend([
+      '-lnssutil3',
+      '-latomic',
+      '-ldl',
+      '-lgconf-2',
+      '-lgio-2.0',
+      '-lglib-2.0',
+      '-lgmodule-2.0',
+      '-lgobject-2.0',
+      '-lgthread-2.0',
+      '-lnspr4',
+      '-lnss3',
+      '-lplc4',
+      '-lplds4',
+      '-lpthread',
+      '-lresolv',
+      '-lrt',
+      '-lsmime3',
+      '-Wl,--end-group',
+      '-Wl,-no-whole-archive',
+    ])
 
     self.execute(command)
     return library_path
@@ -1616,26 +1671,53 @@ class LinuxBuild(BuildObject):
 
     command = [
       self.clang_compiler_path,
-      '-shared',
-      '-Wl,--fatal-warnings',
       '-fPIC',
+      '-fuse-ld=gold',
+      '-m64',
+      '-rdynamic',
+      '-shared',
+      '-pthread',
+      '-o', library_path,
+      '-Wl,--as-needed',
+      '-Wl,--export-dynamic',
+      '-Wl,--fatal-warnings',
+      '-Wl,--icf=all',
+      '-Wl,--no-as-needed',
+      '-Wl,-dead_strip',
+      '-Wl,-search_paths_first',
       '-Wl,-z,noexecstack',
       '-Wl,-z,now',
       '-Wl,-z,relro',
-      '-Wl,--no-as-needed',
-      '-lpthread',
-      '-Wl,--as-needed',
-      '-fuse-ld=gold',
-      '-Wl,--icf=all',
-      '-pthread',
-      '-m64',
-      '-Wl,--export-dynamic',
-      '-o', library_path,
-      '-Wl,-soname="{}"'.format(library_name),
+      '-Wl,-soname={}'.format(library_name),
+      '-Wl,--gc-sections',
+      '-Wl,-whole-archive',
+      '-Wl,--start-group',
     ]
-    for filename in self.pattern_files(self.build_output_path, '*.a',
+    for filename in self.pattern_files(self.build_output_path, '*.o',
                                        LINUX_EXCLUDE_OBJECTS):
       command.append(filename)
+
+    command.extend([
+      '-lnssutil3',
+      '-latomic',
+      '-ldl',
+      '-lgconf-2',
+      '-lgio-2.0',
+      '-lglib-2.0',
+      '-lgmodule-2.0',
+      '-lgobject-2.0',
+      '-lgthread-2.0',
+      '-lnspr4',
+      '-lnss3',
+      '-lplc4',
+      '-lplds4',
+      '-lpthread',
+      '-lresolv',
+      '-lrt',
+      '-lsmime3',
+      '-Wl,--end-group',
+      '-Wl,-no-whole-archive',
+    ])
 
     self.execute(command)
     return library_path
@@ -1649,8 +1731,8 @@ class LinuxBuild(BuildObject):
 
 class WindowsBuild(BuildObject):
   """windows build"""
-  def __init__(self, target, target_type, **kwargs):
-    super(self.__class__, self).__init__(target, target_type, WINDOWS, **kwargs)
+  def __init__(self, **kwargs):
+    super(self.__class__, self).__init__(**kwargs)
     self._vs_path = None
     self._vs_version = None
     self._sdk_path = None
@@ -1800,7 +1882,6 @@ def main(args):
     return 0
 
   build.fetch_chromium()
-  build.install_build_deps()
   build.synchronize_chromium_tag()
   build.synchronize_buildspace()
 

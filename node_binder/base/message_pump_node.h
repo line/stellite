@@ -5,6 +5,8 @@
 #ifndef NODE_BINDER_BASE_MESSAGE_PUMP_NODE_H_
 #define NODE_BINDER_BASE_MESSAGE_PUMP_NODE_H_
 
+#include <memory>
+
 #include "base/macros.h"
 #include "base/message_loop/message_pump.h"
 #include "base/threading/thread_checker.h"
