@@ -1327,21 +1327,20 @@ class MacBuild(BuildObject):
       self.copy_stellite_http_client_headers()
 
     if self.target_type == SHARED_LIBRARY:
-      self.link_shared_library()
+      self.link_shared_library('lib{}.dylib'.format(self.target))
 
     if self.target_type == STATIC_LIBRARY:
-      self.link_static_library()
+      self.link_static_library('lib{}.a'.format(self.target))
 
     if self.target_type == NODE_MODULE:
       self.link_node_module()
+      self.copy_node_stellite_javascript_deps()
 
     if self.target_type == EXECUTABLE:
-      shutil.copy2(os.path.join(self.build_output_path, self.target).
+      shutil.copy2(os.path.join(self.build_output_path, self.target),
                    self.output_path)
 
-    raise Exception('undefined target_type error: {}'.format(self.target_type))
-
-  def link_shared_library(self):
+  def link_shared_library(self, library_name):
     command = [
       self.clang_compiler_path,
       '-shared',
@@ -1355,7 +1354,6 @@ class MacBuild(BuildObject):
                                        MAC_EXCLUDE_OBJECTS):
       command.append(filename)
 
-    library_name = 'libstellite.dylib'
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend([
       '-o', library_path,
@@ -1376,8 +1374,7 @@ class MacBuild(BuildObject):
 
     shutil.copy2(library_path, self.output_path)
 
-  def link_static_library(self):
-    library_name = 'lib{}.a'.format(self.target)
+  def link_static_library(self, library_name):
     libtool_path = which_application('libtool')
     if not libtool_path:
       raise Exception('libtool is not exist error')
@@ -1394,7 +1391,7 @@ class MacBuild(BuildObject):
     ])
     self.execute(command)
 
-    self.copy2(library_path, self.output_path)
+    shutil.copy2(library_path, self.output_path)
 
   def link_node_module(self):
     command = [
@@ -1608,6 +1605,9 @@ class LinuxBuild(BuildObject):
     self.build_target(self.target)
 
   def package_target(self):
+    if self.target_type == STELLITE_HTTP_CLIENT:
+      self.copy_stellite_http_client_headers()
+
     if self.target_type == STATIC_LIBRARY:
       self.link_static_library()
 
@@ -1616,6 +1616,7 @@ class LinuxBuild(BuildObject):
 
     if self.target_type == NODE_MODULE:
       self.link_node_module()
+      self.copy_node_stellite_javascript_deps()
 
     if self.target_type == EXECUTABLE:
       shutil.copy2(os.path.join(self.build_output_path, self.target),
