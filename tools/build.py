@@ -1113,6 +1113,12 @@ class AndroidBuild(BuildObject):
     return os.path.join(toolchain_path, filtered[0])
 
   @property
+  def android_strip_path(self):
+    toolchain_path = os.path.join(self.android_toolchain_path, 'bin')
+    filtered = filter(lambda x: x.endswith('strip'), os.listdir(toolchain_path))
+    return os.path.join(toolchain_path, filtered[0])
+
+  @property
   def binutils_path(self):
     return os.path.join(self.chromium_path, 'src', 'third_party', 'binutils',
                         'Linux_x64', 'Release', 'bin')
@@ -1222,13 +1228,18 @@ class AndroidBuild(BuildObject):
       '-Wl,--exclude-libs=libgcc.a',
       '-Wl,--exclude-libs=libc++_static.a',
       '-Wl,--exclude-libs=libvpx_assembly_arm.a',
+      '-Wl,',
       '--target={}'.format(self.android_abi_target),
+      '-Wl,--warn-shared-textrel',
+      '-Wl,-O1',
+      '-Wl,-fdata-sections',
+      '-Wl,-ffunction-sections',
+      '-Wl,--gc-sections',
       '-nostdlib',
       '-Wl,--warn-shared-textrel',
       '--sysroot={}'.format(self.android_ndk_sysroot),
-      '-Wl,--warn-shared-textrel',
-      '-Wl,-O1',
-      '-Wl,--gc-sections',
+      '-Bdynamic',
+      '-Wl,-z,nocopyreloc',
       '-Wl,-wrap,calloc',
       '-Wl,-wrap,free',
       '-Wl,-wrap,malloc',
@@ -1237,35 +1248,45 @@ class AndroidBuild(BuildObject):
       '-Wl,-wrap,pvalloc',
       '-Wl,-wrap,realloc',
       '-Wl,-wrap,valloc',
-      '-Wl,--gc-sections',
+      '-L{}'.format(self.android_libcpp_libs_dir),
       '-Wl,-soname={}'.format(library_name),
       os.path.join(self.android_ndk_lib, 'crtbegin_so.o'),
     ]
 
     objs = self.pattern_files(os.path.join(self.build_output_path, 'obj'),
                               '*.o', ANDROID_EXCLUDE_OBJECTS)
+    command.append('-Wl,--start-group')
     command.extend(objs)
+    command.append('-Wl,--end-group')
 
     command.extend([
-      '-L{}'.format(self.android_libcpp_libs_dir),
-      '-lc++_shared',
+      '-lc++_static',
       '-lc++abi',
       '-landroid_support',
+      '-lunwind',
       self.android_libgcc_filename,
       '-lc',
       '-ldl',
       '-lm',
       '-llog',
+      '-latomic',
       os.path.join(self.android_ndk_lib, 'crtend_so.o'),
     ])
 
     # armv6, armv7 arch leck of stack trace symbol in stl
-    if self.target_arch in ('armv6', 'armv7'):
-      command.append('-lunwind')
+    if not self.target_arch in ('armv6', 'armv7'):
+      command.remove('-lunwind')
 
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend(['-o', library_path])
 
+    self.execute(command)
+
+    # strip shared library
+    command = [
+      self.android_strip_path,
+      library_path,
+    ]
     self.execute(command)
 
     if not os.path.exists(output_dir):
