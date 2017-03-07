@@ -392,6 +392,7 @@ def option_parser(args):
 
   parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
   parser.add_argument('--debug', action='store_true', help='debugging mode')
+  parser.add_argument('--asan', action='store_true', help='address sanitizer')
 
   parser.add_argument('--node-module-version', choices=NODE_VERSIONS.keys(),
                       default=DEFAULT_NODE_MODULE_VERSION)
@@ -475,7 +476,8 @@ class BuildObject(object):
 
   def __init__(self, action=None, chromium_path=None, debug=False,
                node_module_version=None, target=None, target_arch=None,
-               target_platform=None, target_type=None, verbose=False):
+               target_platform=None, target_type=None, verbose=False,
+               asan=False):
     self._action = action
     self._chromium_path = chromium_path
     self._debug = debug
@@ -485,6 +487,7 @@ class BuildObject(object):
     self._target_platform = target_platform
     self._target_type = target_type
     self._verbose = verbose
+    self._asan = asan
 
     self.fetch_depot_tools()
 
@@ -500,6 +503,7 @@ class BuildObject(object):
       'target_platform': self.target_platform,
       'target_type': self.target_type,
       'verbose': self.verbose,
+      'asan': self.asan,
     }
 
   @property
@@ -529,6 +533,10 @@ class BuildObject(object):
   @property
   def target_platform(self):
     return self._target_platform
+
+  @property
+  def asan(self):
+    return self._asan
 
   @property
   def root_path(self):
@@ -787,6 +795,7 @@ class BuildObject(object):
     gn_options = gn_options or []
 
     gn_args += '\nis_debug = {}\n'.format('true' if self.debug else 'false')
+    gn_args += '\nis_asan = {}\n'.format('true' if self.asan else 'false')
 
     if not os.path.exists(self.build_output_path):
       os.makedirs(self.build_output_path)
@@ -1277,17 +1286,22 @@ class AndroidBuild(BuildObject):
     if not self.target_arch in ('armv6', 'armv7'):
       command.remove('-lunwind')
 
+    if self.debug:
+      command.append('-fno-optimize-sibling-calls')
+      command.append('-fno-omit-frame-pointer')
+
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend(['-o', library_path])
 
     self.execute(command)
 
     # strip shared library
-    command = [
-      self.android_strip_path,
-      library_path,
-    ]
-    self.execute(command)
+    if not self.debug:
+      command = [
+        self.android_strip_path,
+        library_path,
+      ]
+      self.execute(command)
 
     if not os.path.exists(output_dir):
       os.makedirs(output_dir)
