@@ -155,6 +155,10 @@ component("stellite_http_client") {
       "//base:base_java",
       "//net/android:net_java",
     ]
+
+    sources += [
+      "client/jni_onload.cc",
+    ]
   }
 }
 

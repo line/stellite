@@ -392,6 +392,7 @@ def option_parser(args):
 
   parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
   parser.add_argument('--debug', action='store_true', help='debugging mode')
+  parser.add_argument('--asan', action='store_true', help='address sanitizer')
 
   parser.add_argument('--node-module-version', choices=NODE_VERSIONS.keys(),
                       default=DEFAULT_NODE_MODULE_VERSION)
@@ -475,7 +476,8 @@ class BuildObject(object):
 
   def __init__(self, action=None, chromium_path=None, debug=False,
                node_module_version=None, target=None, target_arch=None,
-               target_platform=None, target_type=None, verbose=False):
+               target_platform=None, target_type=None, verbose=False,
+               asan=False):
     self._action = action
     self._chromium_path = chromium_path
     self._debug = debug
@@ -485,6 +487,7 @@ class BuildObject(object):
     self._target_platform = target_platform
     self._target_type = target_type
     self._verbose = verbose
+    self._asan = asan
 
     self.fetch_depot_tools()
 
@@ -500,6 +503,7 @@ class BuildObject(object):
       'target_platform': self.target_platform,
       'target_type': self.target_type,
       'verbose': self.verbose,
+      'asan': self.asan,
     }
 
   @property
@@ -529,6 +533,10 @@ class BuildObject(object):
   @property
   def target_platform(self):
     return self._target_platform
+
+  @property
+  def asan(self):
+    return self._asan
 
   @property
   def root_path(self):
@@ -787,6 +795,7 @@ class BuildObject(object):
     gn_options = gn_options or []
 
     gn_args += '\nis_debug = {}\n'.format('true' if self.debug else 'false')
+    gn_args += '\nis_asan = {}\n'.format('true' if self.asan else 'false')
 
     if not os.path.exists(self.build_output_path):
       os.makedirs(self.build_output_path)
@@ -930,12 +939,14 @@ class BuildObject(object):
     """copy stellite code to buildspace"""
     if os.path.exists(self.buildspace_node_binder_path):
       os.remove(self.buildspace_node_binder_path)
+
     command = ['ln', '-s', self.node_binder_path]
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
   def copy_node_code(self):
     if os.path.exists(self.buildspace_node_path):
       os.remove(self.buildspace_node_path)
+
     command = ['ln', '-s', self.node_include_path, 'node']
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
@@ -988,6 +999,18 @@ class BuildObject(object):
 
   def unittest(self):
     raise NotImplementedError()
+
+  def copy_stellite_http_client_headers(self):
+    include_dir = os.path.join(self.output_path, 'include')
+    if not os.path.exists(include_dir):
+      os.makedirs(include_dir)
+
+    for header_file in self.stellite_http_client_header_files:
+      shutil.copy(header_file, include_dir)
+
+  def copy_node_stellite_javascript_deps(self):
+    for javascript_file in self.pattern_files(self.node_binder_path, '*.js'):
+      shutil.copy(javascript_file, self.output_path)
 
 
 class AndroidBuild(BuildObject):
@@ -1099,6 +1122,12 @@ class AndroidBuild(BuildObject):
     return os.path.join(toolchain_path, filtered[0])
 
   @property
+  def android_strip_path(self):
+    toolchain_path = os.path.join(self.android_toolchain_path, 'bin')
+    filtered = filter(lambda x: x.endswith('strip'), os.listdir(toolchain_path))
+    return os.path.join(toolchain_path, filtered[0])
+
+  @property
   def binutils_path(self):
     return os.path.join(self.chromium_path, 'src', 'third_party', 'binutils',
                         'Linux_x64', 'Release', 'bin')
@@ -1173,9 +1202,7 @@ class AndroidBuild(BuildObject):
     self.gclient_sync()
     return True
 
-  def link_static_library(self):
-    library_name = 'lib{}_{}_{}.a'.format(self.target, self.target_platform,
-                                          self.target_arch)
+  def link_static_library(self, library_name, output_dir):
     library_path = os.path.join(self.build_output_path, library_name)
     command = [
       self.android_ar_path,
@@ -1185,11 +1212,13 @@ class AndroidBuild(BuildObject):
     for filename in self.pattern_files(self.build_output_path, '*.o'):
       command.append(filename)
     self.execute(command)
-    return library_path
 
-  def link_shared_library(self):
-    library_name = 'lib{}_{}_{}.so'.format(self.target, self.target_platform,
-                                           self.target_arch)
+    if not os.path.exists(output_dir):
+      os.makedirs(output_dir)
+
+    shutil.copy2(library_path, output_dir)
+
+  def link_shared_library(self, library_name, output_dir):
     command = [
       self.clang_compiler_path,
       '-Wl,-shared',
@@ -1208,13 +1237,18 @@ class AndroidBuild(BuildObject):
       '-Wl,--exclude-libs=libgcc.a',
       '-Wl,--exclude-libs=libc++_static.a',
       '-Wl,--exclude-libs=libvpx_assembly_arm.a',
+      '-Wl,',
       '--target={}'.format(self.android_abi_target),
+      '-Wl,--warn-shared-textrel',
+      '-Wl,-O1',
+      '-Wl,-fdata-sections',
+      '-Wl,-ffunction-sections',
+      '-Wl,--gc-sections',
       '-nostdlib',
       '-Wl,--warn-shared-textrel',
       '--sysroot={}'.format(self.android_ndk_sysroot),
-      '-Wl,--warn-shared-textrel',
-      '-Wl,-O1',
-      '-Wl,--gc-sections',
+      '-Bdynamic',
+      '-Wl,-z,nocopyreloc',
       '-Wl,-wrap,calloc',
       '-Wl,-wrap,free',
       '-Wl,-wrap,malloc',
@@ -1223,38 +1257,55 @@ class AndroidBuild(BuildObject):
       '-Wl,-wrap,pvalloc',
       '-Wl,-wrap,realloc',
       '-Wl,-wrap,valloc',
-      '-Wl,--gc-sections',
+      '-L{}'.format(self.android_libcpp_libs_dir),
       '-Wl,-soname={}'.format(library_name),
       os.path.join(self.android_ndk_lib, 'crtbegin_so.o'),
     ]
 
     objs = self.pattern_files(os.path.join(self.build_output_path, 'obj'),
                               '*.o', ANDROID_EXCLUDE_OBJECTS)
+    command.append('-Wl,--start-group')
     command.extend(objs)
+    command.append('-Wl,--end-group')
 
     command.extend([
-      '-L{}'.format(self.android_libcpp_libs_dir),
-      '-lc++_shared',
+      '-lc++_static',
       '-lc++abi',
       '-landroid_support',
+      '-lunwind',
       self.android_libgcc_filename,
       '-lc',
       '-ldl',
       '-lm',
       '-llog',
+      '-latomic',
       os.path.join(self.android_ndk_lib, 'crtend_so.o'),
     ])
 
     # armv6, armv7 arch leck of stack trace symbol in stl
-    if self.target_arch in ('armv6', 'armv7'):
-      command.append('-lunwind')
+    if not self.target_arch in ('armv6', 'armv7'):
+      command.remove('-lunwind')
+
+    if self.debug:
+      command.append('-fno-optimize-sibling-calls')
+      command.append('-fno-omit-frame-pointer')
 
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend(['-o', library_path])
 
     self.execute(command)
 
-    return library_path
+    # strip shared library
+    if not self.debug:
+      command = [
+        self.android_strip_path,
+        library_path,
+      ]
+      self.execute(command)
+
+    if not os.path.exists(output_dir):
+      os.makedirs(output_dir)
+    shutil.copy2(library_path, output_dir)
 
   def build(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
@@ -1269,16 +1320,19 @@ class AndroidBuild(BuildObject):
       build.build_target(self.target)
 
   def package_target(self):
-    output_files = []
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
       kwargs = self.kwargs
       kwargs[TARGET_ARCH] = arch
       build = AndroidBuild(**kwargs)
+
+      output_dir = os.path.join(build.output_path, build.target_arch)
       if build.target_type == STATIC_LIBRARY:
-        output_files.append(build.link_static_library())
+        build.link_static_library('lib{}.a'.format(self.target), output_dir)
+
       if build.target_type == SHARED_LIBRARY:
-        output_files.append(build.link_shared_library())
-    return output_files
+        build.link_shared_library('lib{}.so'.format(self.target), output_dir)
+
+    self.copy_stellite_http_client_headers()
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
@@ -1304,21 +1358,24 @@ class MacBuild(BuildObject):
     self.build_target(self.target)
 
   def package_target(self):
+    if self.target == STELLITE_HTTP_CLIENT:
+      self.copy_stellite_http_client_headers()
+
     if self.target_type == SHARED_LIBRARY:
-      return [self.link_shared_library()]
+      self.link_shared_library('lib{}.dylib'.format(self.target))
 
     if self.target_type == STATIC_LIBRARY:
-      return [self.link_static_library()]
+      self.link_static_library('lib{}.a'.format(self.target))
 
     if self.target_type == NODE_MODULE:
-      return [self.link_node_module()]
+      self.link_node_module()
+      self.copy_node_stellite_javascript_deps()
 
     if self.target_type == EXECUTABLE:
-      return [os.path.join(self.build_output_path, self.target)]
+      shutil.copy2(os.path.join(self.build_output_path, self.target),
+                   self.output_path)
 
-    raise Exception('undefined target_type error: {}'.format(self.target_type))
-
-  def link_shared_library(self):
+  def link_shared_library(self, library_name):
     command = [
       self.clang_compiler_path,
       '-shared',
@@ -1332,7 +1389,6 @@ class MacBuild(BuildObject):
                                        MAC_EXCLUDE_OBJECTS):
       command.append(filename)
 
-    library_name = 'lib{}_{}.dylib'.format(self.target, self.target_platform)
     library_path = os.path.join(self.build_output_path, library_name)
     command.extend([
       '-o', library_path,
@@ -1350,10 +1406,10 @@ class MacBuild(BuildObject):
       '-framework', 'SystemConfiguration'
     ])
     self.execute(command, cwd=self.build_output_path)
-    return library_path
 
-  def link_static_library(self):
-    library_name = 'lib{}.a'.format(self.target)
+    shutil.copy2(library_path, self.output_path)
+
+  def link_static_library(self, library_name):
     libtool_path = which_application('libtool')
     if not libtool_path:
       raise Exception('libtool is not exist error')
@@ -1369,7 +1425,8 @@ class MacBuild(BuildObject):
       '-o', library_path,
     ])
     self.execute(command)
-    return library_path
+
+    shutil.copy2(library_path, self.output_path)
 
   def link_node_module(self):
     command = [
@@ -1401,10 +1458,8 @@ class MacBuild(BuildObject):
       '-framework', 'Security',
       '-framework', 'SystemConfiguration'
     ])
-
     self.execute(command, cwd=self.build_output_path)
-    return library_path
-
+    shutil.copy2(library_path, self.output_path)
 
   def unittest(self):
     gn_arguments = '\n'.join([GN_ARGS_MAC, 'is_asan = true'])
@@ -1467,18 +1522,23 @@ class IOSBuild(BuildObject):
       shutil.rmtree(build.build_output_path)
 
   def package_target(self):
-    library_files = []
+    libs = []
     kwargs = self.kwargs
     for arch in ('x86', 'x64', 'arm', 'arm64'):
       kwargs[TARGET_ARCH] = arch
       build = IOSBuild(**kwargs)
       if build.target_type == STATIC_LIBRARY:
-        library_files.append(build.link_static_library())
+        libs.append(build.link_static_library())
 
       if build.target_type == SHARED_LIBRARY:
-        library_files.append(build.link_shared_library())
+        libs.append(build.link_shared_library())
 
-    return [self.link_fat_library(library_files)]
+    if build.target_type == STATIC_LIBRARY:
+      self.link_fat_library('lib{}.a'.format(self.target), libs)
+    elif build.target_type == SHARED_LIBRARY:
+      self.link_fat_library('lib{}.so'.format(self.target), libs)
+
+    self.copy_stellite_http_client_headers()
 
   def link_shared_library(self):
     library_name = 'lib{}_{}.dylib'.format(self.target, self.target_arch)
@@ -1542,16 +1602,12 @@ class IOSBuild(BuildObject):
     self.execute(command)
     return library_path
 
-  def link_fat_library(self, from_list):
+  def link_fat_library(self, library_filename, from_list):
     command = ['lipo', '-create']
     command.extend(from_list)
     command.append('-output')
 
-    fat_filename = 'lib{}.dylib'.format(self.target)
-    if self.target_type == STATIC_LIBRARY:
-      fat_filename = 'lib{}.a'.format(self.target)
-
-    fat_filepath = os.path.join(self.build_output_path, fat_filename)
+    fat_filepath = os.path.join(self.build_output_path, library_filename)
     command.append(fat_filepath)
 
     if os.path.exists(self.build_output_path):
@@ -1559,7 +1615,8 @@ class IOSBuild(BuildObject):
     os.makedirs(self.build_output_path)
 
     self.execute(command)
-    return fat_filepath
+
+    shutil.copy2(fat_filepath, self.output_path)
 
   def unittest(self):
     pass
@@ -1583,19 +1640,22 @@ class LinuxBuild(BuildObject):
     self.build_target(self.target)
 
   def package_target(self):
+    if self.target_type == STELLITE_HTTP_CLIENT:
+      self.copy_stellite_http_client_headers()
+
     if self.target_type == STATIC_LIBRARY:
-      return [self.link_static_library()]
+      self.link_static_library()
 
     if self.target_type == SHARED_LIBRARY:
-      return [self.link_shared_library()]
+      self.link_shared_library()
 
     if self.target_type == NODE_MODULE:
-      return [self.link_node_module()]
+      self.link_node_module()
+      self.copy_node_stellite_javascript_deps()
 
     if self.target_type == EXECUTABLE:
-      return [os.path.join(self.build_output_path, self.target)]
-
-    raise Exception('invalid target type error')
+      shutil.copy2(os.path.join(self.build_output_path, self.target),
+                   self.output_path)
 
   def link_static_library(self):
     library_name = 'lib{}.a'.format(self.target)
@@ -1607,7 +1667,7 @@ class LinuxBuild(BuildObject):
       command.append(filename)
     self.execute(command)
 
-    return library_path
+    shutil.copy2(library_path, self.output_path)
 
   def link_shared_library(self):
     library_name = 'lib{}.so'.format(self.target)
@@ -1663,7 +1723,8 @@ class LinuxBuild(BuildObject):
     ])
 
     self.execute(command)
-    return library_path
+
+    shutil.copy2(library_path, self.output_path)
 
   def link_node_module(self):
     library_name = 'stellite.node'
@@ -1720,7 +1781,8 @@ class LinuxBuild(BuildObject):
     ])
 
     self.execute(command)
-    return library_path
+
+    shutil.copy2(library_path, self.output_path)
 
   def fetch_toolchain(self):
     return True
@@ -1853,16 +1915,16 @@ class WindowsBuild(BuildObject):
       output_files.extend(self.pattern_files(self.build_output_path, '*.dll'))
 
     if self.target_type == EXECUTABLE:
-      return [os.path.join(self.build_output_path, self.target)]
+      output_files.append(os.path.join(self.build_output_path, self.target))
 
-    return output_files
+    for output_file in output_files:
+      shutil.copy2(output_file, self.output_path)
 
   def build(self):
     is_component = 'false' if self.target_type == STATIC_LIBRARY else 'true'
     gn_args = GN_ARGS_WINDOWS.format(is_component)
     self.generate_ninja_script(gn_args=gn_args)
     self.build_target(self.target)
-    return self.package_target()
 
   def unittest(self):
     pass
@@ -1894,17 +1956,7 @@ def main(args):
     os.makedirs(build.output_path)
 
     build.build()
-    output_files = build.package_target()
-
-    if build.target == STELLITE_HTTP_CLIENT:
-      output_files.extend(build.stellite_http_client_header_files)
-
-    if build.target_type == NODE_MODULE:
-      output_files.extend(build.pattern_files(build.node_binder_path, '*.js'))
-
-    for output_file_path in output_files:
-      shutil.copy(output_file_path, build.output_path)
-    return 0
+    build.package_target()
 
   if options.action == UNITTEST:
     build.unittest()
