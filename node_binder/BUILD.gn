@@ -52,5 +52,6 @@ static_library("node_stellite") {
     "//net",
     "//net:simple_quic_tools",
     "//stellite:stellite",
+    "//stellite:stellite_quic_server_base",
   ]
 }

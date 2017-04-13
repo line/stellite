@@ -26,7 +26,7 @@ namespace stellite {
 NodeQuicServerStream::NodeQuicServerStream(net::QuicStreamId id,
                                            net::QuicSpdySession* session)
     : net::QuicSpdyStream(id, session),
-      content_length_(0),
+      content_length_(-1),
       visitor_(nullptr) {
 }
 

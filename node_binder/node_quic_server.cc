@@ -26,6 +26,7 @@
 #include "node_binder/node_quic_dispatcher.h"
 #include "node_binder/node_quic_server_packet_writer.h"
 #include "node_binder/socket/udp_server.h"
+#include "stellite/crypto/quic_ephemeral_key_source.h"
 
 namespace stellite {
 
@@ -82,6 +83,11 @@ bool NodeQuicServer::Initialize() {
           kSourceAddressTokenSecret,
           net::QuicRandom::GetInstance(),
           CreateProofSource(cert_path_, key_path_)));
+
+  crypto_server_config_->set_strike_register_no_startup_period();
+
+  crypto_server_config_->SetEphemeralKeySource(
+      new net::QuicEphemeralKeySource());
 
   // TODO(@snibug) if quic server config are cached take it and initialize with
   // crypto_server_config_->SetConfigs() interface
