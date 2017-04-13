@@ -39,6 +39,7 @@ class NodeQuicServerWrap : public node::ObjectWrap,
 
  private:
   NodeQuicServerWrap(const std::string& cert_path, const std::string& key_path,
+                     const std::string& hex_encoded_config,
                      v8::Local<v8::Object> node_object);
   ~NodeQuicServerWrap() override;
 

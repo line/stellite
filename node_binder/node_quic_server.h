@@ -41,6 +41,7 @@ class UDPServer;
 class NodeQuicServer {
  public:
   NodeQuicServer(const std::string& cert_path, const std::string& key_path,
+                 const std::string& hex_encoded_config,
                  NodeQuicNotifyInterface* notify_interface);
   ~NodeQuicServer();
 
@@ -56,6 +57,7 @@ private:
 
   const std::string cert_path_;
   const std::string key_path_;
+  const std::string hex_encoded_config_;
   NodeQuicNotifyInterface* notify_interface_;
 
   // quic dispatcher

@@ -39,6 +39,8 @@ static_library("node_stellite") {
     "node_quic_server_stream_wrap.h",
     "node_quic_server_wrap.cc",
     "node_quic_server_wrap.h",
+    "quic_server_config_util.cc",
+    "quic_server_config_util.h",
     "socket/udp_server.cc",
     "socket/udp_server.h",
     "socket/udp_socket.cc",

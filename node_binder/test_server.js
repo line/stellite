@@ -15,9 +15,12 @@ var stellite = require('./stellite');
 
 stellite.setMinLogLevel(3);
 
+console.log(stellite.generateQuicServerConfig());
+
 var server = stellite.createQuicServer({
     cert: '',
-    key: ''
+    key: '',
+    quic_server_config_protobuf: stellite.generateQuicServerConfig(),
   },
   function(req, res) {
     req.on('headers', function onHeaders(headers, fin) {

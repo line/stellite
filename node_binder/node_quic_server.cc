@@ -14,17 +14,22 @@
 
 #include "node_binder/node_quic_server.h"
 
+#include <vector>
+
 #include "base/message_loop/message_loop.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/quic/chromium/crypto/proof_source_chromium.h"
 #include "net/quic/chromium/quic_chromium_connection_helper.h"
+#include "net/quic/core/crypto/crypto_server_config_protobuf.h"
 #include "net/tools/quic/quic_simple_server_session_helper.h"
 #include "node_binder/node_message_pump_manager.h"
 #include "node_binder/node_quic_alarm_factory.h"
 #include "node_binder/node_quic_dispatcher.h"
 #include "node_binder/node_quic_server_packet_writer.h"
+#include "node_binder/quic_server_config_util.h"
 #include "node_binder/socket/udp_server.h"
 #include "stellite/crypto/quic_ephemeral_key_source.h"
 
@@ -52,9 +57,11 @@ std::unique_ptr<net::ProofSource> CreateProofSource(
 
 NodeQuicServer::NodeQuicServer(const std::string& cert_path,
                                const std::string& key_path,
+                               const std::string& hex_encoded_config,
                                NodeQuicNotifyInterface* notify_interface)
     : cert_path_(cert_path),
       key_path_(key_path),
+      hex_encoded_config_(hex_encoded_config),
       notify_interface_(notify_interface),
       read_pending_(false),
       synchronous_read_count_(0),
@@ -91,11 +98,30 @@ bool NodeQuicServer::Initialize() {
 
   // TODO(@snibug) if quic server config are cached take it and initialize with
   // crypto_server_config_->SetConfigs() interface
-  std::unique_ptr<net::CryptoHandshakeMessage> scfg(
-      crypto_server_config_->AddDefaultConfig(
-          net::QuicRandom::GetInstance(),
-          &quic_clock_,
-          net::QuicCryptoServerConfig::ConfigOptions()));
+  std::unique_ptr<net::CryptoHandshakeMessage> scfg;
+  if (hex_encoded_config_.size()) {
+    std::unique_ptr<net::QuicServerConfigProtobuf> config_protobuf(
+        QuicServerConfigUtil::DecodeConfig(hex_encoded_config_));
+    if (!config_protobuf.get()) {
+      LOG(ERROR) << "fail to decode quic server config";
+      return false;
+    }
+
+    scfg.reset(crypto_server_config_->AddConfig(
+            config_protobuf.get(),
+            quic_clock_.WallNow()));
+  } else {
+    scfg.reset(
+        crypto_server_config_->AddDefaultConfig(
+            net::QuicRandom::GetInstance(),
+            &quic_clock_,
+            net::QuicCryptoServerConfig::ConfigOptions()));
+  }
+
+  if (!scfg.get()) {
+    LOG(ERROR) << "failed to parse quic server config message";
+    return false;
+  }
 
   version_manager_.reset(new net::QuicVersionManager(
           net::AllSupportedVersions()));
