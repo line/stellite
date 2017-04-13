@@ -311,5 +311,5 @@ std::string V8ToString(v8::Local<v8::Value> value) {
   return result;
 }
 
-}  // namespace gin
+}  // namespace v8
 

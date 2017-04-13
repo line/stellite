@@ -148,6 +148,7 @@ function QuicServer(options, requestListener) {
   var server = stellite.createQuicServer(
     options.cert,
     options.key,
+    options.quic_server_config_protobuf || '',
     this);
 
   this.server = server;
@@ -221,3 +222,4 @@ function createHttpFetcher() {
 module.exports.createQuicServer = createQuicServer;
 module.exports.createHttpFetcher = createHttpFetcher;
 module.exports.setMinLogLevel = stellite.setMinLogLevel;
+module.exports.generateQuicServerConfig = stellite.generateQuicServerConfig;

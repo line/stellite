@@ -12,22 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <sstream>
+
 #include "base/at_exit.h"
 #include "base/logging.h"
 #include "base/message_loop/message_loop.h"
+#include "base/strings/string_number_conversions.h"
+#include "net/quic/core/crypto/crypto_server_config_protobuf.h"
 #include "node/node.h"
 #include "node_binder/node_http_fetcher_wrap.h"
 #include "node_binder/node_message_pump_manager.h"
 #include "node_binder/node_quic_server_stream_wrap.h"
 #include "node_binder/node_quic_server_wrap.h"
+#include "node_binder/quic_server_config_util.h"
 #include "node_binder/v8/converter.h"
 
+using v8::Converter;
 using v8::FunctionCallbackInfo;
+using v8::Isolate;
 using v8::Local;
 using v8::Object;
+using v8::String;
 using v8::Value;
-using v8::Isolate;
-using v8::Converter;
 
 namespace {
 
@@ -61,6 +67,38 @@ void NODE_MODULE_EXPORT SetMinLogLevel(
   logging::SetMinLogLevel(logging_level);
 }
 
+void NODE_MODULE_EXPORT GenerateQuicServerConfig(
+    const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+
+  int expiry_seconds = 60 * 60 * 24 * 180; // default expire date 6 months
+  if (args[0]->IsNumber()) {
+    if (!Converter<int>::FromV8(isolate, args[0], &expiry_seconds)) {
+      LOG(WARNING) << "expiry seconds overflow of integer range so "
+          << "expire_seconds are setting a default value" << expiry_seconds;
+    }
+  }
+
+  bool use_p256 = false;
+  if (args[1]->IsBoolean()) {
+    Converter<bool>::FromV8(isolate, args[1], &use_p256);
+  }
+
+  bool use_channel_id = false;
+  if (args[2]->IsBoolean()) {
+    Converter<bool>::FromV8(isolate, args[2], &use_channel_id);
+  }
+
+  std::unique_ptr<net::QuicServerConfigProtobuf>
+      server_config(stellite::QuicServerConfigUtil::GenerateConfig(
+              use_p256, use_channel_id, expiry_seconds));
+
+  std::string encoded_config;
+  CHECK(stellite::QuicServerConfigUtil::EncodeConfig(server_config.get(),
+                                                     &encoded_config));
+  args.GetReturnValue().Set(StringToSymbol(isolate, encoded_config));
+}
+
 void NODE_MODULE_EXPORT Init(Local<Object> exports, Local<Object> module) {
   Isolate* isolate = exports->GetIsolate();
 
@@ -71,6 +109,7 @@ void NODE_MODULE_EXPORT Init(Local<Object> exports, Local<Object> module) {
   NODE_SET_METHOD(exports, "createQuicServer", &CreateQuicServer);
   NODE_SET_METHOD(exports, "createHttpFetcher", &CreateHttpFetcher);
   NODE_SET_METHOD(exports, "setMinLogLevel", &SetMinLogLevel);
+  NODE_SET_METHOD(exports, "generateQuicServerConfig", &GenerateQuicServerConfig);
 }
 
 NODE_MODULE(stellite, Init);

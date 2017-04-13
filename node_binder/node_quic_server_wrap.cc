@@ -47,8 +47,10 @@ const char kOnStreamCreated[] = "onStreamCreated";
 
 NodeQuicServerWrap::NodeQuicServerWrap(const std::string& cert_path,
                                        const std::string& key_path,
+                                       const std::string& hex_encoded_config,
                                        Local<Object> node_object)
-    : quic_server_(new NodeQuicServer(cert_path, key_path, this)),
+    : quic_server_(new NodeQuicServer(cert_path, key_path, hex_encoded_config,
+                                      this)),
       isolate_(node_object->GetIsolate()),
       persist_object_(node_object->GetIsolate(), node_object) {
 }
@@ -152,10 +154,32 @@ void NodeQuicServerWrap::NewInstance(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = args.GetIsolate();
   HandleScope scope(isolate);
 
-  if (!args[0]->IsString() || !args[1]->IsString() || !args[2]->IsObject()) {
+  if (!args[0]->IsString()) {
     isolate->ThrowException(
         Exception::TypeError(
-            String::NewFromUtf8(isolate, "invalid arguments")));
+            String::NewFromUtf8(isolate, "invalid cert file argument")));
+    return;
+  }
+
+  if (!args[1]->IsString()) {
+    isolate->ThrowException(
+        Exception::TypeError(
+            String::NewFromUtf8(isolate, "invalid key file argument")));
+    return;
+  }
+
+  if (!args[2]->IsString()) {
+    isolate->ThrowException(
+        Exception::TypeError(
+            String::NewFromUtf8(isolate,
+                                "invalid hex encoded_config_protobuf args")));
+    return;
+  }
+
+  if (!args[3]->IsObject()) {
+    isolate->ThrowException(
+        Exception::TypeError(
+            String::NewFromUtf8(isolate, "invalid self object argument")));
     return;
   }
 
@@ -163,7 +187,7 @@ void NodeQuicServerWrap::NewInstance(const FunctionCallbackInfo<Value>& args) {
   Context::Scope context_scope(context);
 
   Local<Function> constructor = Local<Function>::New(isolate, constructor_);
-  Local<Value> argv[] = { args[0], args[1], args[2] };
+  Local<Value> argv[] = { args[0], args[1], args[2], args[3] };
   Local<Object> instance =
       constructor->NewInstance(context, arraysize(argv), argv)
       .ToLocalChecked();
@@ -174,16 +198,17 @@ void NodeQuicServerWrap::NewInstance(const FunctionCallbackInfo<Value>& args) {
 // static
 void NodeQuicServerWrap::New(const FunctionCallbackInfo<Value>& args) {
   CHECK(args.IsConstructCall());
-  CHECK_EQ(args.Length(), 3);
+  CHECK_EQ(args.Length(), 4);
 
   Isolate* isolate = args.GetIsolate();
   HandleScope scope(isolate);
 
   std::string cert_path(*static_cast<String::Utf8Value>(args[0]->ToString()));
   std::string key_path(*static_cast<String::Utf8Value>(args[1]->ToString()));
-  Local<Object> self = Local<Object>::Cast(args[2]);
+  std::string quic_config(*static_cast<String::Utf8Value>(args[2]->ToString()));
+  Local<Object> self = Local<Object>::Cast(args[3]);
   NodeQuicServerWrap* server_wrap =
-      new NodeQuicServerWrap(cert_path, key_path, self);
+      new NodeQuicServerWrap(cert_path, key_path, quic_config, self);
   server_wrap->Wrap(args.This());
 
   args.GetReturnValue().Set(args.This());
