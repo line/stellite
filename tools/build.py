@@ -1012,6 +1012,22 @@ class BuildObject(object):
     for javascript_file in self.pattern_files(self.node_binder_path, '*.js'):
       shutil.copy(javascript_file, self.output_path)
 
+  def copy_chromium_java_deps(self):
+    to_lib_java_dir = os.path.join(self.output_path, 'lib.java')
+    if not os.path.exists(to_lib_java_dir):
+      os.makedirs(to_lib_java_dir)
+
+    from_lib_java_dir = os.path.join(self.build_output_path, 'lib.java')
+    if not os.path.exists(from_lib_java_dir):
+      raise Exception(from_lib_java_dir + ' is not exist error')
+
+    for jar_file in self.pattern_files(from_lib_java_dir, '*.jar'):
+      if jar_file.endswith('interface.jar'):
+        continue
+      if 'android_support_' in jar_file:
+        continue
+      shutil.copy(jar_file, to_lib_java_dir)
+
 
 class AndroidBuild(BuildObject):
   """android build"""
@@ -1320,11 +1336,13 @@ class AndroidBuild(BuildObject):
       build.build_target(self.target)
 
   def package_target(self):
+    builds = []
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
       kwargs = self.kwargs
       kwargs[TARGET_ARCH] = arch
-      build = AndroidBuild(**kwargs)
+      builds.append(AndroidBuild(**kwargs))
 
+    for build in builds:
       output_dir = os.path.join(build.output_path, build.target_arch)
       if build.target_type == STATIC_LIBRARY:
         build.link_static_library('lib{}.a'.format(self.target), output_dir)
@@ -1333,6 +1351,8 @@ class AndroidBuild(BuildObject):
         build.link_shared_library('lib{}.so'.format(self.target), output_dir)
 
     self.copy_stellite_http_client_headers()
+    if len(builds) > 0:
+      builds[0].copy_chromium_java_deps()
 
   def clean(self):
     for arch in ('armv6', 'armv7', 'arm64', 'x86', 'x64'):
