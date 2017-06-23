@@ -890,6 +890,22 @@ class BuildObject(object):
                '--jobs', str(multiprocessing.cpu_count() * 4)]
     self.execute(command, cwd=cwd)
 
+    chromium_build_path = os.path.join(self.chromium_src_path, 'build')
+
+    # install-build-deps.sh
+    if self.target_platform == LINUX:
+      self.execute(
+        [os.path.join(chromium_build_path, 'install-build-deps.sh')],
+        cwd=cwd
+      )
+
+    # install-build-deps-android.sh
+    if self.target_platform == ANDROID:
+      self.execute(
+        [os.path.join(chromium_build_path, 'install-build-deps-android.sh')],
+        cwd=cwd
+      )
+
   def synchronize_buildspace(self):
     """synchronize code for building libchromium.a"""
     if not os.path.exists(self.buildspace_src_path):
