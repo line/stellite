@@ -101,6 +101,9 @@ class STELLITE_EXPORT HttpSession::SessionImpl {
               const std::string& raw_header, const std::string& body,
               bool chunked_upload, bool stream_response, int timeout);
 
+  bool AppendChunkToUpload(int request_id, const std::string& chunk,
+                           bool is_last);
+
   HttpSessionVisitor* client_visitor() {
     return visitor_;
   }
@@ -177,6 +180,11 @@ int HttpSession::SessionImpl::Request(HttpSession::RequestMethod method,
   return http_client_->Request(request, timeout);
 }
 
+bool HttpSession::SessionImpl::AppendChunkToUpload(int request_id,
+                                                   const std::string& chunk,
+                                                   bool is_last) {
+  return http_client_->AppendChunkToUpload(request_id, chunk, is_last);
+}
 
 void HttpSession::SessionImpl::InitInternal(HttpSession::Params& params) {
   HttpClientContext::Params context_params;
@@ -232,6 +240,12 @@ int HttpSession::Request(RequestMethod method,
   std::string body(raw_body, body_len);
   return impl_->Request(method, url, header, body, chunked_upload,
                         stream_response, timeout);
+}
+
+bool HttpSession::AppendChunkToUpload(int request_id, const char* chunk,
+                                      size_t len, bool is_last) {
+  std::string stream(chunk, len);
+  return impl_->AppendChunkToUpload(request_id, stream, is_last);
 }
 
 void HttpSession::CancelAll() {

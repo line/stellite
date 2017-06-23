@@ -136,6 +136,9 @@ HttpResponse* HttpClientImpl::NewResponse(
 
     // response code
     http_response->response_code = headers->response_code();
+
+    // content length
+    http_response->content_length = headers->GetContentLength();
   }
 
   if (response_info) {

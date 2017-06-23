@@ -124,7 +124,7 @@ component("stellite_http_client") {
     "client/logging.cc",
     "include/http_client.h",
     "include/http_client_context.h",
-    "include/http_session",
+    "include/http_session.h",
     "include/logging.h",
     "include/stellite_export.h",
   ]

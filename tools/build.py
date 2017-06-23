@@ -102,10 +102,10 @@ enable_stripping = enable_dsyms
 ios_enable_code_signing = false
 is_component_build = false
 is_official_build = false
-symbol_level = 1
 target_cpu = "{target_cpu}"
 target_os = "ios"
 use_xcode_clang = is_official_build
+use_platform_icu_alternatives = true
 """
 
 GN_ARGS_ANDROID = """
@@ -113,14 +113,13 @@ disable_file_support = true
 disable_ftp_support = true
 is_clang = true
 is_component_build = false
-symbol_level = 1
 target_cpu = "{target_cpu}"
 target_os = "android"
+use_platform_icu_alternatives = true
 """
 
 GN_ARGS_WINDOWS = """
 is_component_build = {}
-symbol_level = 1
 target_cpu = "x64"
 target_os = "win"
 """
@@ -796,6 +795,7 @@ class BuildObject(object):
 
     gn_args += '\nis_debug = {}\n'.format('true' if self.debug else 'false')
     gn_args += '\nis_asan = {}\n'.format('true' if self.asan else 'false')
+    gn_args += '\nsymbol_level = {}\n'.format('1' if self.debug else '0')
 
     if not os.path.exists(self.build_output_path):
       os.makedirs(self.build_output_path)
