@@ -116,8 +116,6 @@ void HttpFetcherTask::Stop() {
 void HttpFetcherTask::OnFetchComplete(
     const net::URLFetcher* source,
     const net::HttpResponseInfo* response_info) {
-  DCHECK_EQ(state_, STATE_STARTED);
-
   if (url_fetch_timeout_timer_.get()) {
     url_fetch_timeout_timer_->Stop();
   }
@@ -133,6 +131,8 @@ void HttpFetcherTask::OnFetchComplete(
       LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
           << source->GetURL() << " " << source->GetResponseCode();
       visitor_->OnTaskError(request_id_, source, status.error());
+    } else if (is_stream_response_) {
+      visitor_->OnTaskStream(request_id_, nullptr, 0, true);
     } else {
       visitor_->OnTaskComplete(request_id_, source, response_info);
     }
@@ -144,20 +144,22 @@ void HttpFetcherTask::OnFetchComplete(
   http_fetcher_->OnTaskComplete(request_id_);
 }
 
-void HttpFetcherTask::OnFetchHeader(
-    const net::URLFetcher* source,
-    const net::HttpResponseInfo* response_info) {
-  DCHECK_EQ(state_, STATE_STARTED);
-  if (visitor_.get()) {
-    visitor_->OnTaskHeader(request_id_, source, response_info);
-  }
-}
-
 void HttpFetcherTask::OnFetchStream(
+    const net::URLFetcher* source,
+    const net::HttpResponseInfo* response_info,
     const char* data, size_t len, bool fin) {
-  DCHECK_EQ(state_, STATE_STARTED);
-  if (visitor_.get()) {
-    visitor_->OnTaskStream(request_id_, data, len, fin);
+  DCHECK(is_stream_response_);
+
+  if (state_ == STATE_STARTED) {
+    state_ = STATE_STREAMING;
+    if (visitor_.get()) {
+      visitor_->OnTaskHeader(request_id_, source, response_info);
+    }
+  } else {
+    DCHECK_EQ(state_, STATE_STREAMING);
+    if (visitor_.get()) {
+      visitor_->OnTaskStream(request_id_, data, len, fin);
+    }
   }
 
   if (fin) {
