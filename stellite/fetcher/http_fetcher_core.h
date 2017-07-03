@@ -221,9 +221,6 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   void ReadResponse();
 
   // notify header and streaming data about the download
-  void InformDelegateFetchHeader();
-  void InformDelegateFetchHeaderInDelegateThread();
-
   void InformDelegateFetchStream(scoped_refptr<DrainableIOBuffer> data);
   void InformDelegateFetchStreamInDelegateThread(
       scoped_refptr<DrainableIOBuffer> data);

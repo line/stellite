@@ -60,7 +60,6 @@ bool HttpClientImpl::AppendChunkToUpload(int request_id,
 void HttpClientImpl::OnTaskComplete(int request_id,
                                     const net::URLFetcher* source,
                                     const net::HttpResponseInfo* response) {
-
   HttpResponse* http_response = FindResponse(request_id);
   if (!http_response) {
     http_response = NewResponse(request_id, source, response);
