@@ -561,9 +561,6 @@ void NodeHttpFetcherWrap::OnRequestComplete(int request_id) {
   // remove IncomingResponse reference
   ReleaseIncomingResponse(request_id);
 
-  // release request
-  http_fetcher_->OnRequestComplete(request_id);
-
   // manage reference count for message pump
   NodeMessagePumpManager::current()->RemoveRef();
 }
