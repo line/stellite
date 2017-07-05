@@ -19,28 +19,31 @@ const stellite = require('./stellite');
 var fetcher = stellite.createHttpFetcher();
 
 var options = {
-  url:'http://google.com',
+  url:'http://example.com',
   method: 'GET',
   is_chunked_upload: false,
   is_stream_response: false,
   is_stop_on_redirect: false,
-  payload: '',
 };
 
-var response = fetcher.request(options)
-  .on('response', function(headers, data) {
-    console.log('on response:');
-    console.log(headers);
-    console.log(data.toString('utf8'));
-  })
-  .on('headers', function(headers) {
-    console.log(`on header: ${headers}`);
-  })
-  .on('data', function(data) {
-    console.log(`on data: ${data.toString('utf8')}`);
-  })
-  .on('error', function(error_code) {
-    console.log(`error: ${error_code}`);
-  });
+for (let i = 0; i < 10; ++i) {
+  var response = fetcher.request(options)
+    .on('response', function(status_code, headers, data) {
+      console.log('on response:');
+      console.log(`status code: ${status_code}`);
+      console.log(headers);
+    })
+    .on('headers', function(status_code, headers) {
+      console.log(`on header: ${headers}`);
+      console.log(`status code: ${status_code}`);
+    })
+    .on('data', function(data) {
+      console.log(`on data: ${data.toString('utf8')}`);
+    })
+    .on('error', function(error_code) {
+      console.log(`error: ${error_code}`);
+    });
+}
 
 module.exports.fetcher = fetcher;
+module.exports.response = response;

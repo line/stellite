@@ -1,0 +1,12 @@
+{
+  "devDependencies": {
+    "mocha": "^3.4.2"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "dependencies": {
+    "chai": "^4.0.2",
+    "express": "^4.15.3"
+  }
+}
