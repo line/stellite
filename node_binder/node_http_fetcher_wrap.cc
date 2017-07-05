@@ -113,37 +113,35 @@ void NodeHttpFetcherWrap::OnTaskComplete(
   }
 
   const net::URLRequestStatus& status = source->GetStatus();
+  net::HttpResponseHeaders* headers = response_info->headers.get();
   if (status.status() == net::URLRequestStatus::FAILED) {
     Local<Value> args[] = {
       String::NewFromUtf8(isolate_, kError),
       Number::New(isolate_, status.error()),
-      Converter<net::HttpResponseHeaders>::ToV8(
-          isolate_,
-          *(response_info->headers.get())),
+      Converter<net::HttpResponseHeaders>::ToV8(isolate_, *headers),
     };
 
     // javascript: incoming_response.emit('error', error_code, headers);
     emit->Call(incoming_response, arraysize(args), args);
     OnRequestComplete(request_id);
+    return;
   }
 
-  // successed
+  // succeed
   Local<Value> args[] = {
     String::NewFromUtf8(isolate_, kResponse),
-    Converter<net::HttpResponseHeaders>::ToV8(
-        isolate_,
-        *(response_info->headers.get())),
+    Converter<int32_t>::ToV8(isolate_, headers->response_code()),
+    Converter<net::HttpResponseHeaders>::ToV8(isolate_, *headers),
     Null(isolate_),
   };
 
   std::string payload;
   source->GetResponseAsString(&payload);
 
-  char* buffer = nullptr;
   if (payload.size()) {
-    buffer = static_cast<char*>(malloc(payload.size()));
+    char* buffer = static_cast<char*>(malloc(payload.size()));
     memcpy(buffer, payload.data(), payload.size());
-    args[2] =
+    args[3] =
         node::Buffer::New(isolate_, buffer, payload.size())
         .ToLocalChecked();
   }
@@ -174,11 +172,11 @@ void NodeHttpFetcherWrap::OnTaskHeader(
           incoming_response->Get(context, emit_callback_key)
           .ToLocalChecked());
 
+  net::HttpResponseHeaders* headers = response_info->headers.get();
   Local<Value> args[] = {
     String::NewFromUtf8(isolate_, kHeaders),
-    Converter<net::HttpResponseHeaders>::ToV8(
-        isolate_,
-        *(response_info->headers.get())),
+    Converter<int32_t>::ToV8(isolate_, headers->response_code()),
+    Converter<net::HttpResponseHeaders>::ToV8(isolate_, *headers),
   };
 
   // javascript: incoming_response.emit('header', headers)
