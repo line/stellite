@@ -37,8 +37,8 @@ for (let i = 0; i < 10; ++i) {
       console.log(`on header: ${headers}`);
       console.log(`status code: ${status_code}`);
     })
-    .on('data', function(data) {
-      console.log(`on data: ${data.toString('utf8')}`);
+    .on('data', function(data, fin) {
+      console.log(`on fin: ${fin} data: ${data.toString('utf8')}`);
     })
     .on('error', function(error_code) {
       console.log(`error: ${error_code}`);

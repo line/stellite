@@ -208,6 +208,7 @@ void NodeHttpFetcherWrap::OnTaskStream(
   Local<Value> args[] = {
     String::NewFromUtf8(isolate_, kData),
     node::Buffer::New(isolate_, buffer, len).ToLocalChecked(),
+    Boolean::New(isolate_, fin),
   };
 
   // javascript: incoming_response.emit('data', stream)
