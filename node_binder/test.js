@@ -34,80 +34,159 @@ describe('stellite unittest', () => {
 
     app.get('/stream', (req, res) => {
       for (let i = 0; i < 100; ++i) {
-        res.write(`stream data: ${i}`);
+        res.write(`stream data: ${i}\n`);
       }
       res.status(200).end();
     });
 
+    app.post('/upload', (req, res) => {
+      req.on('data', (data) => {
+        res.write(data);
+      });
+      req.on('end', () => {
+        res.status(200).end();
+      });
+    });
+
     server = http.createServer(app);
-    server.listen(8080);
+    server.listen(8002);
   });
 
   after(() => {
     const res = server.close();
   });
 
-  describe('stellite client test case', () => {
-    it('should GET return 200', (done) => {
-      fetcher.request({
-        url: 'http://localhost:8080',
-        method: 'GET',
-      }).on('response', (status_code, headers, data) => {
-        expect(status_code).to.equal(200);
-        expect(data.toString('utf8')).to.equal('ok');
+  it('should GET return 200', (done) => {
+    fetcher.request({
+      url: 'http://localhost:8002',
+      method: 'GET',
+    }).on('response', (statusCode, headers, data) => {
+      expect(statusCode).to.equal(200);
+      expect(data.toString('utf8')).to.equal('ok');
+      done();
+    });
+  });
+
+  it('should POST return 200', (done) => {
+    fetcher.request({
+      url: 'http://localhost:8002',
+      method: 'POST',
+      payload: 'body',
+    }).on('response', (statusCode, headers, data) => {
+      expect(statusCode).to.equal(200);
+      expect(data.toString('utf8')).to.equal('ok');
+      done();
+    });
+  });
+
+  it('should PUT return 200', (done) => {
+    fetcher.request({
+      url: 'http://localhost:8002',
+      method: 'PUT',
+      payload: 'body',
+    }).on('response', (statusCode, headers, data) => {
+      expect(statusCode).to.equal(200);
+      expect(data.toString('utf8')).to.equal('ok');
+      done();
+    });
+  });
+
+  it('should DELETE return 200', (done) => {
+    fetcher.request({
+      url: 'http://localhost:8002',
+      method: 'DELETE',
+    }).on('response', (statusCode, headers, data) => {
+      expect(statusCode).to.equal(200);
+      expect(data.toString('utf8')).to.equal('ok');
+      done();
+    });
+  });
+
+  it('should get response using stream callback', (done) => {
+    let received = 0;
+    const req = fetcher.request({
+      url: 'http://localhost:8002/stream',
+      is_stream_response: true,
+      method: 'GET',
+    }).on('data', (data, fin) => {
+      received += data.length;
+      if (fin) {
+        expect(received).to.be.above(1);
         done();
-      });
+      }
+    });
+  });
+
+  it('should request using chunked upload', (done) => {
+    const request = fetcher.request({
+      url: 'http://localhost:8002/upload',
+      is_chunked_upload: true,
+      method: 'POST',
     });
 
-    it('should POST return 200', (done) => {
-      fetcher.request({
-        url: 'http://localhost:8080',
+    request.write('hello', false);
+    request.write('world', false);
+    request.write('end', true);
+
+    request.on('response', (statusCode, headers, data) => {
+      expect(statusCode).to.be.equal(200);
+      done();
+    });
+  });
+
+  it('should chunked request cannot send after last chunk', () => {
+    const request = fetcher.request({
+      url: 'http://localhost:8002/upload',
+      is_chunked_upload: true,
+      method: 'POST',
+    });
+
+    expect(() => {
+      request.write('hello', true);
+      // make exception after fin write
+      request.write('world', false);
+    }).to.throw(Error);
+  });
+
+  it('should POST request require payload or is_chunked_upload param', () => {
+    // payload, chunked_upload are missing
+    expect(() => {
+      const request = fetcher.request({
+        url: 'http://localhost:8002',
         method: 'POST',
-        payload: 'body',
-      }).on('response', (status_code, headers, data) => {
-        expect(status_code).to.equal(200);
-        expect(data.toString('utf8')).to.equal('ok');
-        done();
       });
-    });
+    }).to.throw(Error);
+  });
 
-    it('should PUT return 200', (done) => {
-      fetcher.request({
-        url: 'http://localhost:8080',
+  it('should PUT request require payload or is_chunked_upload param', () => {
+    expect(() => {
+      const request = fetcher.request({
+        url: 'http://localhost:8002',
         method: 'PUT',
-        payload: 'body',
-      }).on('response', (status_code, headers, data) => {
-        expect(status_code).to.equal(200);
-        expect(data.toString('utf8')).to.equal('ok');
-        done();
       });
+    }).to.throw(Error);
+  });
+
+  it('should can chunked request and stream response', (done) => {
+    const req = fetcher.request({
+      url: 'http://localhost:8002/upload',
+      is_chunked_upload: true,
+      is_stream_response: true,
+      method: 'POST',
     });
 
-    it('should DELETE return 200', (done) => {
-      fetcher.request({
-        url: 'http://localhost:8080',
-        method: 'DELETE',
-      }).on('response', (status_code, headers, data) => {
-        expect(status_code).to.equal(200);
-        expect(data.toString('utf8')).to.equal('ok');
-        done();
-      });
+    const message = 'hello';
+
+    req.on('header', (statusCode, headers) => {
     });
 
-    it('should get response using stream callback', (done) => {
-      let received = 0;
-      const req = fetcher.request({
-        url: 'http://localhost:8080/stream',
-        is_stream_response: true,
-        method: 'GET',
-      }).on('data', (data, fin) => {
-        received += data.length;
-        if (fin) {
-          expect(received).to.be.above(1);
-          done();
-        }
-      });
+    req.on('data', (data, fin) => {
+      expect(data.toString('utf8')).to.equal(message + message);
+      done();
     });
+
+    req.write(message, false);
+    req.write(message, true);
   });
 
   it('should generate quic server config', (done) => {
@@ -116,4 +195,3 @@ describe('stellite unittest', () => {
     done();
   });
 });
-
