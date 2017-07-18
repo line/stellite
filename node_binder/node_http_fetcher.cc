@@ -76,6 +76,12 @@ bool NodeHttpFetcher::AppendChunkToUpload(int request_id,
   return impl_->AppendChunkToUpload(request_id, data, fin);
 }
 
+void NodeHttpFetcher::Cancel(int request_id) {
+  DCHECK(CalledOnValidThread());
+  impl_->Cancel(request_id);
+}
+
+
 void NodeHttpFetcher::OnRequestComplete(int request_id) {
   DCHECK(CalledOnValidThread());
   impl_->OnTaskComplete(request_id);

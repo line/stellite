@@ -45,6 +45,7 @@ using v8::Null;
 namespace {
 
 const char kAppendChunkToUpload[] = "appendChunkToUpload";
+const char kCancel[] = "cancel";
 const char kData[] = "data";
 const char kEmit[] = "emit";
 const char kError[] = "error";
@@ -336,6 +337,7 @@ void NodeHttpFetcherWrap::Init(Isolate* isolate) {
 
   NODE_SET_PROTOTYPE_METHOD(tmpl, kRequest, &Request);
   NODE_SET_PROTOTYPE_METHOD(tmpl, kAppendChunkToUpload, &AppendChunkToUpload);
+  NODE_SET_PROTOTYPE_METHOD(tmpl, kCancel, &Cancel);
 
   constructor_.Reset(isolate, tmpl->GetFunction());
 }
@@ -554,6 +556,26 @@ void NodeHttpFetcherWrap::AppendChunkToUpload(
 
   bool ret = fetcher->AppendChunkToUpload(request_id, chunk, fin);
   args.GetReturnValue().Set(Boolean::New(isolate, ret));
+}
+
+// static
+void NodeHttpFetcherWrap::Cancel(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  HandleScope scope(isolate);
+
+  int request_id = -1;
+  if (!Converter<int>::FromV8(isolate, args[0], &request_id)) {
+    isolate->ThrowException(
+        Exception::TypeError(
+            String::NewFromUtf8(isolate, "invalid request_id type")));
+    return;
+  }
+
+  NodeHttpFetcherWrap* obj =
+      ObjectWrap::Unwrap<NodeHttpFetcherWrap>(args.Holder());
+  NodeHttpFetcher* fetcher = obj->fetcher();
+
+  fetcher->Cancel(request_id);
 }
 
 void NodeHttpFetcherWrap::OnRequestComplete(int request_id) {

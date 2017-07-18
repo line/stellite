@@ -53,5 +53,8 @@ IncomingResponse.prototype.write = function write(data, fin) {
   }
 };
 
+IncomingResponse.prototype.cancel = function cancel() {
+  this._fetcher.cancel(this._requestId);
+}
 
 module.exports = IncomingResponse;
