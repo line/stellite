@@ -436,6 +436,7 @@ void HttpFetcherCore::OnResponseStarted(URLRequest* request, int net_error) {
       InformDelegateFetchStream(nullptr);
     }
 
+    InformDelegateUpdateFetchTimeout();
   }
 
   ReadResponse();
@@ -454,13 +455,15 @@ void HttpFetcherCore::OnCertificateRequested(
   }
 }
 
-void HttpFetcherCore::OnReadCompleted(URLRequest* request,
-                                      int bytes_read) {
+void HttpFetcherCore::OnReadCompleted(URLRequest* request, int bytes_read) {
   DCHECK_EQ(request, request_.get());
   DCHECK(network_task_runner_->BelongsToCurrentThread());
 
+  InformDelegateUpdateFetchTimeout();
+
   if (!stopped_on_redirect_)
     url_ = request->url();
+
   URLRequestThrottlerManager* throttler_manager =
       request->context()->throttler_manager();
   if (throttler_manager)
@@ -741,7 +744,7 @@ void HttpFetcherCore::InformDelegateFetchStreamInDelegateThread(
   if (!data.get()) {
     if (delegate_) {
       delegate_->OnFetchStream(fetcher_, response_info_.get(),
-                               nullptr, 0, false);
+                               nullptr, 0, false /* fin */);
     }
     return;
   }
@@ -749,12 +752,26 @@ void HttpFetcherCore::InformDelegateFetchStreamInDelegateThread(
   int stream_size = data->BytesRemaining();
   if (delegate_) {
     delegate_->OnFetchStream(fetcher_, response_info_.get(),
-                             data->data(), stream_size, false);
+                             data->data(), stream_size, false /* fin */);
   }
 
   network_task_runner_->PostTask(
       FROM_HERE,
       base::Bind(&HttpFetcherCore::DidWriteBuffer, this, data, stream_size));
+}
+
+void HttpFetcherCore::InformDelegateUpdateFetchTimeout() {
+  delegate_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(
+          &HttpFetcherCore::InformDelegateUpdateFetchTimeoutInDelegateThread,
+          this));
+}
+
+void HttpFetcherCore::InformDelegateUpdateFetchTimeoutInDelegateThread() {
+  if (delegate_) {
+    delegate_->OnUpdateFetchTimeout();
+  }
 }
 
 void HttpFetcherCore::NotifyMalformedContent() {

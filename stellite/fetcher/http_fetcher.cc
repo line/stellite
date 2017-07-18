@@ -124,6 +124,13 @@ void HttpFetcher::Cancel(int request_id) {
   }
 
   task->Stop();
+
+  // release task
+  network_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&HttpFetcher::OnTaskComplete,
+                 weak_factory_.GetWeakPtr(),
+                 request_id));
 }
 
 void HttpFetcher::CancelAll() {

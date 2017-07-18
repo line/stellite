@@ -225,6 +225,9 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   void InformDelegateFetchStreamInDelegateThread(
       scoped_refptr<DrainableIOBuffer> data);
 
+  void InformDelegateUpdateFetchTimeout();
+  void InformDelegateUpdateFetchTimeoutInDelegateThread();
+
   // Check if any upload data is set or not.
   void AssertHasNoUploadData() const;
 
