@@ -410,11 +410,7 @@ void HttpFetcherCore::OnReceivedRedirect(URLRequest* request,
     total_received_bytes_ += request_->GetTotalReceivedBytes();
     response_info_.reset(new HttpResponseInfo(request->response_info()));
 
-    if (stream_response_) {
-      InformDelegateFetchHeader();
-    } else {
-      InformDelegateFetchIsComplete();
-    }
+    InformDelegateFetchIsComplete();
 
     int result = request->Cancel();
     OnReadCompleted(request, result);
@@ -437,8 +433,10 @@ void HttpFetcherCore::OnResponseStarted(URLRequest* request, int net_error) {
 
     // notify a header received
     if (stream_response_) {
-      InformDelegateFetchHeader();
+      InformDelegateFetchStream(nullptr);
     }
+
+    InformDelegateUpdateFetchTimeout();
   }
 
   ReadResponse();
@@ -457,13 +455,15 @@ void HttpFetcherCore::OnCertificateRequested(
   }
 }
 
-void HttpFetcherCore::OnReadCompleted(URLRequest* request,
-                                      int bytes_read) {
+void HttpFetcherCore::OnReadCompleted(URLRequest* request, int bytes_read) {
   DCHECK_EQ(request, request_.get());
   DCHECK(network_task_runner_->BelongsToCurrentThread());
 
+  InformDelegateUpdateFetchTimeout();
+
   if (!stopped_on_redirect_)
     url_ = request->url();
+
   URLRequestThrottlerManager* throttler_manager =
       request->context()->throttler_manager();
   if (throttler_manager)
@@ -724,26 +724,7 @@ void HttpFetcherCore::OnCompletedURLRequest(
 void HttpFetcherCore::InformDelegateFetchIsComplete() {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
   if (delegate_) {
-    if (stream_response_) {
-      delegate_->OnFetchStream(nullptr, 0, true /* fin */);
-    } else {
-      delegate_->OnFetchComplete(fetcher_, response_info_.get());
-    }
-  }
-}
-
-void HttpFetcherCore::InformDelegateFetchHeader() {
-  delegate_task_runner_->PostTask(
-      FROM_HERE,
-      base::Bind(&HttpFetcherCore::InformDelegateFetchHeaderInDelegateThread,
-                 this));
-}
-
-void HttpFetcherCore::InformDelegateFetchHeaderInDelegateThread() {
-  DCHECK(delegate_task_runner_->BelongsToCurrentThread());
-  DCHECK(stream_response_);
-  if (delegate_) {
-    delegate_->OnFetchHeader(fetcher_, response_info_.get());
+    delegate_->OnFetchComplete(fetcher_, response_info_.get());
   }
 }
 
@@ -760,14 +741,37 @@ void HttpFetcherCore::InformDelegateFetchStreamInDelegateThread(
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
   DCHECK(stream_response_);
 
+  if (!data.get()) {
+    if (delegate_) {
+      delegate_->OnFetchStream(fetcher_, response_info_.get(),
+                               nullptr, 0, false /* fin */);
+    }
+    return;
+  }
+
   int stream_size = data->BytesRemaining();
   if (delegate_) {
-    delegate_->OnFetchStream(data->data(), stream_size, false);
+    delegate_->OnFetchStream(fetcher_, response_info_.get(),
+                             data->data(), stream_size, false /* fin */);
   }
 
   network_task_runner_->PostTask(
       FROM_HERE,
       base::Bind(&HttpFetcherCore::DidWriteBuffer, this, data, stream_size));
+}
+
+void HttpFetcherCore::InformDelegateUpdateFetchTimeout() {
+  delegate_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(
+          &HttpFetcherCore::InformDelegateUpdateFetchTimeoutInDelegateThread,
+          this));
+}
+
+void HttpFetcherCore::InformDelegateUpdateFetchTimeoutInDelegateThread() {
+  if (delegate_) {
+    delegate_->OnUpdateFetchTimeout();
+  }
 }
 
 void HttpFetcherCore::NotifyMalformedContent() {

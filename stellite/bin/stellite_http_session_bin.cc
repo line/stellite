@@ -129,11 +129,11 @@ int main(int argc, char* argv[]) {
     std::string command;
     std::getline(std::cin, command);
     session->Request(stellite::HttpSession::HTTP_GET,
-                    command.c_str(), command.size(),
-                    nullptr, 0, nullptr, 0,
-                    /* chunked upload */ false ,
-                    /* stream_response */false ,
-                    /* timeout */ 1000 * 60);
+                     command.c_str(), command.size(),
+                     nullptr, 0, nullptr, 0,
+                     /* chunked upload */ false,
+                     /* stream_response */ false,
+                     /* timeout */ 1000 * 60);
   }
 
   return 0;

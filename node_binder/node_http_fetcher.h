@@ -40,6 +40,7 @@ class NodeHttpFetcher : public base::NonThreadSafe {
               base::WeakPtr<HttpFetcherTask::Visitor> visitor);
 
   bool AppendChunkToUpload(int request_id, const std::string& data, bool fin);
+  void Cancel(int request_id);
 
   void OnRequestComplete(int request_id);
 
