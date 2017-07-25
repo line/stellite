@@ -54,6 +54,7 @@ class STELLITE_EXPORT NodeHttpFetcherWrap
   static void Request(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AppendChunkToUpload(
       const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void Cancel(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   static v8::Persistent<v8::Function> constructor_;
 

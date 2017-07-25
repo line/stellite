@@ -36,7 +36,10 @@ HttpFetcherTask::HttpFetcherTask(HttpFetcher* http_fetcher, int request_id,
       visitor_(delegate) {
 }
 
-HttpFetcherTask::~HttpFetcherTask() {}
+HttpFetcherTask::~HttpFetcherTask() {
+  DCHECK(!url_fetch_timeout_timer_.get() ||
+         !url_fetch_timeout_timer_->IsRunning());
+}
 
 void HttpFetcherTask::Start(const HttpRequest& request,
                             int64_t timeout_msec) {
@@ -46,6 +49,7 @@ void HttpFetcherTask::Start(const HttpRequest& request,
   GURL url(request.url);
   is_chunked_upload_ = request.is_chunked_upload;
   is_stream_response_ = request.is_stream_response;
+  timeout_msec_ = timeout_msec;
 
   net::URLFetcher::RequestType request_type = net::URLFetcher::GET;
   if (request.request_type == HttpRequest::POST) {
@@ -95,14 +99,8 @@ void HttpFetcherTask::Start(const HttpRequest& request,
   url_fetcher_->SetStopOnRedirect(request.is_stop_on_redirect);
   url_fetcher_->Start();
 
-  if (timeout_msec > 0) {
-    // Set timer
-    url_fetch_timeout_timer_.reset(new base::OneShotTimer());
-    url_fetch_timeout_timer_->Start(
-        FROM_HERE,
-        base::TimeDelta::FromMilliseconds(timeout_msec),
-        this,
-        &HttpFetcherTask::OnFetchTimeout);
+  if (timeout_msec_ > 0) {
+    ResetTimeout(timeout_msec_);
   }
 }
 
@@ -110,20 +108,33 @@ void HttpFetcherTask::Stop() {
   DCHECK(url_fetcher_.get());
   url_fetcher_->Stop();
 
-  state_ = STATE_CANCEL;
+  if (url_fetch_timeout_timer_.get()) {
+    url_fetch_timeout_timer_->Stop();
+  }
+}
+
+void HttpFetcherTask::ResetTimeout(int64_t timeout_msec) {
+  if (url_fetch_timeout_timer_.get()) {
+    url_fetch_timeout_timer_->Stop();
+  }
+
+  url_fetch_timeout_timer_.reset(new base::OneShotTimer());
+  url_fetch_timeout_timer_->Start(
+      FROM_HERE,
+      base::TimeDelta::FromMilliseconds(timeout_msec),
+      this,
+      &HttpFetcherTask::OnFetchTimeout);
 }
 
 void HttpFetcherTask::OnFetchComplete(
     const net::URLFetcher* source,
     const net::HttpResponseInfo* response_info) {
-  DCHECK_EQ(state_, STATE_STARTED);
-
   if (url_fetch_timeout_timer_.get()) {
     url_fetch_timeout_timer_->Stop();
   }
 
   if (!visitor_.get()) {
-    LOG(INFO) << "visitor pass a fetcher response";
+    LOG(WARNING) << "visitor pass a fetcher response";
     return;
   }
 
@@ -133,6 +144,8 @@ void HttpFetcherTask::OnFetchComplete(
       LOG(ERROR) << "Fetch has failed, error(" << status.error() << ") "
           << source->GetURL() << " " << source->GetResponseCode();
       visitor_->OnTaskError(request_id_, source, status.error());
+    } else if (is_stream_response_) {
+      visitor_->OnTaskStream(request_id_, nullptr, 0, true);
     } else {
       visitor_->OnTaskComplete(request_id_, source, response_info);
     }
@@ -144,25 +157,33 @@ void HttpFetcherTask::OnFetchComplete(
   http_fetcher_->OnTaskComplete(request_id_);
 }
 
-void HttpFetcherTask::OnFetchHeader(
-    const net::URLFetcher* source,
-    const net::HttpResponseInfo* response_info) {
-  DCHECK_EQ(state_, STATE_STARTED);
-  if (visitor_.get()) {
-    visitor_->OnTaskHeader(request_id_, source, response_info);
-  }
-}
-
 void HttpFetcherTask::OnFetchStream(
+    const net::URLFetcher* source,
+    const net::HttpResponseInfo* response_info,
     const char* data, size_t len, bool fin) {
-  DCHECK_EQ(state_, STATE_STARTED);
-  if (visitor_.get()) {
-    visitor_->OnTaskStream(request_id_, data, len, fin);
+  DCHECK(is_stream_response_);
+
+  if (state_ == STATE_STARTED) {
+    state_ = STATE_STREAMING;
+    if (visitor_.get()) {
+      visitor_->OnTaskHeader(request_id_, source, response_info);
+    }
+  } else {
+    DCHECK_EQ(state_, STATE_STREAMING);
+    if (visitor_.get()) {
+      visitor_->OnTaskStream(request_id_, data, len, fin);
+    }
   }
 
   if (fin) {
     state_ = STATE_COMPLETE;
     http_fetcher_->OnTaskComplete(request_id_);
+  }
+}
+
+void HttpFetcherTask::OnUpdateFetchTimeout() {
+  if (timeout_msec_ > 0) {
+    ResetTimeout(timeout_msec_);
   }
 }
 

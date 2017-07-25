@@ -243,7 +243,7 @@ void MessagePumpNode::DoWork() {
 }
 
 void MessagePumpNode::DoDelayedWork() {
-  DCHECK_EQ(message_pump_state_, STATE_RUNNING);
+  //DCHECK_EQ(message_pump_state_, STATE_RUNNING);
   DCHECK(delegate_);
   if (delayed_work_time_.is_null()) {
     return;

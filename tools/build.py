@@ -966,6 +966,9 @@ class BuildObject(object):
     command = ['ln', '-s', self.node_include_path, 'node']
     self.execute_with_error(command, cwd=self.buildspace_src_path)
 
+    command = ['touch', os.path.join(self.node_include_path, 'node.h')]
+    self.execute_with_error(command)
+
   def build_target(self, target):
     if not target:
       raise ValueError('invalid target: {}'.format(target))
@@ -1027,6 +1030,8 @@ class BuildObject(object):
   def copy_node_stellite_javascript_deps(self):
     for javascript_file in self.pattern_files(self.node_binder_path, '*.js'):
       shutil.copy(javascript_file, self.output_path)
+    for json_file in self.pattern_files(self.node_binder_path, '*.json'):
+      shutil.copy(json_file, self.output_path)
 
   def copy_chromium_java_deps(self):
     to_lib_java_dir = os.path.join(self.output_path, 'lib.java')

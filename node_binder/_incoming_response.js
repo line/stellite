@@ -28,18 +28,33 @@ function IncomingResponse() {
 
   this._fetcher = arguments[0];
   this._requestId = arguments[1];
+  this._fin_sent = false;
 }
 util.inherits(IncomingResponse, events.EventEmitter);
 
 
-IncomingResponse.prototype.write = function write(data) {
-  this._fetcher.appendChunkToUpload(this._requestId, data, false);
+IncomingResponse.prototype.write = function write(data, fin) {
+  if (this._fin_sent) {
+    throw new Error('last chunk are already sent error');
+  }
+
+  if (!data || !data.hasOwnProperty('length') || data.length == 0) {
+    throw new Error('invalid data argument error');
+  }
+
+  if (fin === undefined || fin === null) {
+    fin = false;
+  }
+
+  this._fetcher.appendChunkToUpload(this._requestId, data, fin);
+
+  if (fin) {
+    this._fin_sent = true;
+  }
 };
 
-
-IncomingResponse.prototype.end = function end(data) {
-  this._fetcher.appendChunkToUpload(this._requestId, data, true);
-};
-
+IncomingResponse.prototype.cancel = function cancel() {
+  this._fetcher.cancel(this._requestId);
+}
 
 module.exports = IncomingResponse;
