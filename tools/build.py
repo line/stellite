@@ -22,7 +22,7 @@ BUILD = 'build'
 CHROMIUM = 'chromium'
 CHROMIUM_PATH = 'chromium_path'
 CLEAN = 'clean'
-CLIENT_BINDER = 'client_binder'
+STELLITE_CLIENT_BINDER = 'stellite_client_binder'
 CONFIGURE = 'configure'
 DARWIN = 'darwin'
 EXECUTABLE = 'executable'
@@ -373,7 +373,7 @@ def option_parser(args):
 
   parser.add_argument('--target',
                       choices=[STELLITE_QUIC_SERVER_BIN,
-                               CLIENT_BINDER,
+                               STELLITE_CLIENT_BINDER,
                                SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN,
                                STELLITE_HTTP_CLIENT,
                                STELLITE_HTTP_CLIENT_BIN,

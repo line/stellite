@@ -163,7 +163,7 @@ class BinderHttpClientContext : public HttpClientContext,
   }
 
   void OnHttpStream(int request_id, const HttpResponse& response,
-                    const char* data, size_t len) override {
+                    const char* data, size_t len, bool is_last) override {
     wait_object_.Signal();
   }
 
@@ -220,7 +220,6 @@ extern "C" {
 void* new_context() {
   BinderHttpClientContext::Params params;
   params.using_quic = false;
-  params.using_spdy = true;
   params.using_http2 = true;
 
   std::unique_ptr<BinderHttpClientContext> context(
@@ -235,7 +234,6 @@ void* new_context() {
 void* new_context_with_quic() {
   BinderHttpClientContext::Params params;
   params.using_quic = true;
-  params.using_spdy = true;
   params.using_http2 = true;
 
   std::unique_ptr<BinderHttpClientContext> context(
@@ -252,12 +250,11 @@ void* new_context_with_quic_host(const char* host, bool disk_cache) {
 
   BinderHttpClientContext::Params params;
   params.using_quic = true;
-  params.using_spdy = true;
   params.using_http2 = true;
 
   // TODO(@snibug) remove quic server config cache
   //params.using_quic_disk_cache = disk_cache;
-  params.origin_to_force_quic_on = std::string(host);
+  params.origins_to_force_quic_on.push_back(std::string(host));
 
   std::unique_ptr<BinderHttpClientContext> context(
       new BinderHttpClientContext(params));
@@ -305,7 +302,7 @@ void* get(void* raw_context, void* raw_client, char* url) {
 
   HttpRequest request;
   request.url = url;
-  request.method = "GET";
+  request.request_type = stellite::HttpRequest::GET;
 
   BinderHttpClientContext* context =
       reinterpret_cast<BinderHttpClientContext*>(raw_context);
@@ -325,7 +322,7 @@ void* post(void* raw_context, void* raw_client, char* url, char* body) {
 
   HttpRequest request;
   request.url = url;
-  request.method = "POST";
+  request.request_type = stellite::HttpRequest::POST;
 
   std::string ascii_body(body);
   request.upload_stream.write(ascii_body.c_str(), ascii_body.size());

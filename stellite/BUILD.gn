@@ -219,6 +219,14 @@ component("stellite_client_binder") {
     "stub/client_binder.cc",
   ]
 
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+  ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
+
   deps = [
     "//base",
     "//build/config/sanitizers:deps",
