@@ -30,7 +30,7 @@ namespace net {
 const int kDefaultDispatchContinuity = 16;
 const int kDefaultHttpRequestTimeout = 30;
 const int kDefaultQuicPort = 6121;
-const int kDefaultRecvBufferSize = 256 * 1024;
+const int kDefaultRecvBufferSize = 1024 * 1024; // 1MB
 const int kQuicMaxPacketSize = 1452;
 const int kDefaultSendBufferSize = kQuicMaxPacketSize * 30;
 const int kUpperBoundPort =

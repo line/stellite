@@ -65,9 +65,6 @@ class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
   void Start(const HttpRequest& http_request, int64_t timeout_msec);
   void Stop();
 
-  // timer
-  void ResetTimeout(int64_t timeout_msec);
-
   // Implementation for net::HttpFetcherDelegate
   void OnFetchComplete(const net::URLFetcher* source,
                        const net::HttpResponseInfo* response_info) override;
@@ -76,7 +73,10 @@ class STELLITE_EXPORT HttpFetcherTask : public HttpFetcherDelegate {
                      const net::HttpResponseInfo* response_info,
                      const char* data, size_t len, bool fin) override;
 
-  void OnUpdateFetchTimeout() override;
+  void ResetTimeout() override;
+
+  // timer
+  void ResetTimeout(int64_t timeout_msec);
 
   void OnFetchTimeout();
 

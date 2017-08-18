@@ -20,6 +20,7 @@
 #include "net/http/http_response_headers.h"
 #include "net/http/http_response_info.h"
 #include "net/url_request/url_fetcher.h"
+#include "stellite/fetcher/http_request_context_getter.h"
 #include "stellite/include/http_client.h"
 #include "stellite/include/http_request.h"
 #include "stellite/include/http_response.h"
@@ -30,9 +31,9 @@ const char* kTimeoutMessage = "timeout error";
 
 namespace stellite {
 
-HttpClientImpl::HttpClientImpl(HttpFetcher* http_fetcher,
+HttpClientImpl::HttpClientImpl(HttpRequestContextGetter* context_getter,
                                HttpResponseDelegate* response_delegate)
-    : http_fetcher_(http_fetcher),
+    : http_fetcher_(new HttpFetcher(context_getter)),
       response_delegate_(response_delegate),
       weak_factory_(this) {
   CHECK(response_delegate_);

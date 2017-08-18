@@ -21,7 +21,6 @@
 #include "base/memory/ref_counted.h"
 #include "base/threading/thread.h"
 #include "stellite/client/http_client_impl.h"
-#include "stellite/fetcher/http_fetcher.h"
 #include "stellite/fetcher/http_request_context_getter.h"
 
 #if defined(ANDROID)
@@ -65,7 +64,6 @@ class HttpClientContext::ContextImpl {
   std::unique_ptr<base::Thread> network_thread_;
 
   scoped_refptr<HttpRequestContextGetter> http_request_context_getter_;
-  std::unique_ptr<HttpFetcher> http_fetcher_;
 
   HttpClientMap http_client_map_;
 
@@ -130,7 +128,6 @@ bool HttpClientContext::ContextImpl::Init() {
 
   http_request_context_getter_ = new HttpRequestContextGetter(
       params, network_thread_->task_runner());
-  http_fetcher_.reset(new HttpFetcher(http_request_context_getter_));
 
   return true;
 }
@@ -147,13 +144,14 @@ bool HttpClientContext::ContextImpl::Teardown() {
 }
 
 void HttpClientContext::ContextImpl::CancelAll() {
-  http_fetcher_->CancelAll();
+  // http_fetcher_->CancelAll();
 }
 
 HttpClient* HttpClientContext::ContextImpl::CreateHttpClient(
     HttpResponseDelegate* response_delegate) {
-  HttpClient* client = new HttpClientImpl(http_fetcher_.get(),
-                                          response_delegate);
+  HttpClient* client = new HttpClientImpl(
+      http_request_context_getter_.get(),
+      response_delegate);
   return client;
 }
 

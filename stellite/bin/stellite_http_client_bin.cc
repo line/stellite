@@ -30,15 +30,6 @@
 #include "stellite/include/http_request.h"
 #include "stellite/include/http_response.h"
 
-// The IP or host name the QUIC client will connect to.
-std::string FLAGS_host = "";
-
-// The port to connect to.
-std::string FLAGS_port = "80";
-
-// The CA cert bundle file path
-std::string FLAG_cert_bundle = "";
-
 namespace stellite {
 class HttpCallback : public HttpResponseDelegate {
  public:
@@ -101,6 +92,12 @@ void HttpCallback::OnHttpError(int request_id, int error_code,
 } // namespace stellite
 
 int main(int argc, char *argv[]) {
+  // The IP or host name the QUIC client will connect to.
+  std::string FLAGS_host = "";
+
+  // The port to connect to.
+  std::string FLAGS_port = "80";
+
   base::CommandLine::Init(argc, argv);
   base::CommandLine* line = base::CommandLine::ForCurrentProcess();
 
@@ -130,17 +127,6 @@ int main(int argc, char *argv[]) {
   if (line->HasSwitch("port")) {
     FLAGS_port = line->GetSwitchValueASCII("port");
   }
-
-#if defined(USE_OPENSSL_CERTS) && !defined(ANDROID)
-  if (line->HasSwitch("cacert")) {
-    std::string path = line->GetSwitchValueASCII("cacert");
-    if (!stellite::HttpClientContext::ResetCertBundle(path)) {
-      LOG(WARNING) << "Failed to load the CA certificate file: " << path;
-    } else {
-      LOG(WARNING) << "CA certificate was loaded successfully: " << path;
-    }
-  }
-#endif
 
   stellite::HttpClientContext::Params params;
 

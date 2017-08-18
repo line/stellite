@@ -30,6 +30,7 @@ class StelliteTestSuite : public base::TestSuite {
 
  protected:
   void InitializeInternal();
+  void TeardownInternal();
 
  private:
   std::unique_ptr<net::NetworkChangeNotifier> network_change_notifier_;

@@ -594,7 +594,8 @@ class BuildObject(object):
   def build_output_path(self):
     """return object file path that store a compiled files"""
     out_dir = 'out_{}'.format(self.target_platform)
-    return os.path.join(self.buildspace_src_path, out_dir)
+    build = 'debug' if self.debug else 'release'
+    return os.path.join(self.buildspace_src_path, out_dir, build)
 
   @property
   def stellite_path(self):

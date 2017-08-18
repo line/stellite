@@ -11,9 +11,9 @@
 #include "net/quic/core/crypto/quic_random.h"
 #include "stellite/fetcher/http_fetcher.h"
 #include "stellite/fetcher/http_request_context_getter.h"
+#include "stellite/server/quic_proxy_session.h"
 #include "stellite/server/server_packet_writer.h"
 #include "stellite/server/server_per_connection_packet_writer.h"
-#include "stellite/server/server_session.h"
 #include "stellite/server/server_session_helper.h"
 
 namespace net {
@@ -54,14 +54,13 @@ QuicServerSessionBase* QuicProxyDispatcher::CreateQuicSession(
       /* owns_writer */ true,
       Perspective::IS_SERVER, GetSupportedVersions());
 
-  ServerSession* server_session =
-      new ServerSession(config(), crypto_config(), server_config(),
-                        connection, this, session_helper(),
-                        http_fetcher_.get(), http_rewrite_.get(),
-                        compressed_certs_cache());
-  server_session->Initialize();
+  QuicProxySession* session =
+      new QuicProxySession(config(), connection, this, session_helper(),
+                           crypto_config(), compressed_certs_cache(),
+                           http_fetcher_.get(), server_config_.proxy_pass());
+  session->Initialize();
 
-  return static_cast<QuicServerSessionBase*>(server_session);
+  return static_cast<QuicServerSessionBase*>(session);
 }
 
 QuicPacketWriter* QuicProxyDispatcher::CreatePerConnectionWriter() {

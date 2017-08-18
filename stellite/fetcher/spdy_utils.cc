@@ -31,28 +31,29 @@ const char* const kForbiddenHttpHeaderFields[] = {
   "version",
 };
 
-URLFetcher::RequestType ParseMethod(const SpdyHeaderBlock& spdy_headers,
-                                    const SpdyMajorVersion spdy_version) {
+stellite::HttpRequest::RequestType ParseMethod(
+    const SpdyHeaderBlock& spdy_headers,
+    const SpdyMajorVersion spdy_version) {
   std::string header_key = spdy_version >= SPDY3 ? ":method" : "method";
   std::string method = ParseHeader(header_key, spdy_headers, spdy_version);
   std::transform(method.begin(), method.end(), method.begin(), ::toupper);
 
   if (method == "GET") {
-    return URLFetcher::RequestType::GET;
+    return stellite::HttpRequest::RequestType::GET;
   } else if (method == "POST") {
-    return URLFetcher::RequestType::POST;
+    return stellite::HttpRequest::RequestType::POST;
   } else if (method == "HEAD") {
-    return URLFetcher::RequestType::HEAD;
+    return stellite::HttpRequest::RequestType::HEAD;
   } else if (method == "DELETE") {
-    return URLFetcher::RequestType::DELETE_REQUEST;
+    return stellite::HttpRequest::RequestType::DELETE_REQUEST;
   } else if (method == "PUT") {
-    return URLFetcher::RequestType::PUT;
+    return stellite::HttpRequest::RequestType::PUT;
   } else if (method == "PATCH") {
-    return URLFetcher::RequestType::PATCH;
+    return stellite::HttpRequest::RequestType::PATCH;
   }
 
   LOG(ERROR) << "Unknown request method: " << method;
-  return URLFetcher::RequestType::GET;
+  return stellite::HttpRequest::RequestType::GET;
 }
 
 std::string ParseHeader(const std::string& header_key,
