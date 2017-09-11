@@ -217,7 +217,7 @@ void NodeQuicServer::Shutdown() {
 
 void NodeQuicServer::StartReading() {
   if (synchronous_read_count_ == 0) {
-    dispatcher_->ProcessBufferedChlos(16);
+    dispatcher_->ProcessBufferedChlos(4);
   }
 
   if (read_pending_) {
@@ -240,7 +240,7 @@ void NodeQuicServer::StartReading() {
     return;
   }
 
-  if (++synchronous_read_count_ > 32) {
+  if (++synchronous_read_count_ > 4) {
     synchronous_read_count_ = 0;
     base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,

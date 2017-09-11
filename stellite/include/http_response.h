@@ -92,8 +92,8 @@ struct STELLITE_EXPORT HttpResponse {
   bool was_fetched_via_spdy;
   bool was_fetched_via_quic;
 
-  time_t request_time;
-  time_t response_time;
+  uint64_t request_time;
+  uint64_t response_time;
 
   ConnectionInfo connection_info;
   std::string connection_info_desc;

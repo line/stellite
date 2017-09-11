@@ -18,13 +18,15 @@
 #include "net/spdy/spdy_header_block.h"
 #include "net/spdy/spdy_protocol.h"
 #include "net/url_request/url_fetcher.h"
+#include "stellite/include/http_request.h"
 
 namespace net {
 
 class HttpRequestHeaders;
 
-URLFetcher::RequestType ParseMethod(const SpdyHeaderBlock& spdy_headers,
-                                    const SpdyMajorVersion spdy_version);
+stellite::HttpRequest::RequestType ParseMethod(
+    const SpdyHeaderBlock& spdy_headers,
+    const SpdyMajorVersion spdy_version);
 
 std::string ParseHeader(const std::string& header_key,
                         const SpdyHeaderBlock& spdy_headers,

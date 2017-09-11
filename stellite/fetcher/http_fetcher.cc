@@ -16,6 +16,7 @@
 
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_loop.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/http/http_request_headers.h"
 #include "net/url_request/url_fetcher.h"
 #include "net/url_request/url_request_context_getter.h"
@@ -29,9 +30,8 @@ namespace stellite {
 
 HttpFetcher::HttpFetcher(
     scoped_refptr<HttpRequestContextGetter> context_getter)
-    : http_request_context_getter_(context_getter),
-      last_request_id_(0),
-      network_task_runner_(context_getter->GetNetworkTaskRunner()),
+    : last_request_id_(0),
+      context_getter_(context_getter),
       weak_factory_(this) {
 }
 
@@ -41,31 +41,23 @@ int HttpFetcher::Request(const HttpRequest& http_request,
                          int64_t timeout,
                          base::WeakPtr<HttpFetcherTask::Visitor> d) {
   int request_id = ++last_request_id_;
-  if (network_task_runner_->RunsTasksOnCurrentThread()) {
-    StartRequest(request_id, http_request, timeout, d);
-  } else {
-    network_task_runner_->PostTask(
-        FROM_HERE,
-        base::Bind(&HttpFetcher::StartRequest,
-                   weak_factory_.GetWeakPtr(),
-                   request_id, http_request, timeout, d));
-  }
-  return request_id;
 
+  GetTaskRunner()->PostTask(
+      FROM_HERE,
+      base::Bind(&HttpFetcher::StartRequest,
+                 weak_factory_.GetWeakPtr(),
+                 request_id, http_request, timeout, d));
+  return request_id;
 }
 
 bool HttpFetcher::AppendChunkToUpload(int request_id,
                                       const std::string& data,
                                       bool is_last_chunk) {
-  if (network_task_runner_->RunsTasksOnCurrentThread()) {
-    StartAppendChunkToUpload(request_id, data, is_last_chunk);
-  } else {
-    network_task_runner_->PostTask(
-        FROM_HERE,
-        base::Bind(&HttpFetcher::StartAppendChunkToUpload,
-                   weak_factory_.GetWeakPtr(),
-                   request_id, data, is_last_chunk));
-  }
+  GetTaskRunner()->PostTask(
+      FROM_HERE,
+      base::Bind(&HttpFetcher::StartAppendChunkToUpload,
+                 weak_factory_.GetWeakPtr(),
+                 request_id, data, is_last_chunk));
   return true;
 }
 
@@ -73,9 +65,9 @@ void HttpFetcher::StartRequest(int request_id,
                                const HttpRequest& http_request,
                                int64_t timeout,
                                base::WeakPtr<HttpFetcherTask::Visitor> d) {
-  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
-
-  if (!GURL(http_request.url).is_valid()) {
+  GURL request_url(http_request.url);
+  if (!request_url.is_valid()) {
+    LOG(ERROR) << "invalid request url: " << request_url.spec();
     if (d.get()) {
       d->OnTaskError(request_id, nullptr, net::ERR_INVALID_URL);
     }
@@ -83,17 +75,15 @@ void HttpFetcher::StartRequest(int request_id,
   }
 
   HttpFetcherTask* task = new HttpFetcherTask(this, request_id, d);
-  task_map_.insert(std::make_pair(request_id, base::WrapUnique(task)));
+  request_map_.insert(std::make_pair(request_id, base::WrapUnique(task)));
 
   task->Start(http_request, timeout);
 }
 
 void HttpFetcher::StartAppendChunkToUpload(int request_id,
                                            const std::string& data, bool fin) {
-  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
-
-  TaskMap::iterator it = task_map_.find(request_id);
-  if (it == task_map_.end()) {
+  RequestMap::iterator it = request_map_.find(request_id);
+  if (it == request_map_.end()) {
     LOG(ERROR) << "invalid request_id for append chunk upload";
     return;
   }
@@ -117,45 +107,53 @@ void HttpFetcher::StartAppendChunkToUpload(int request_id,
 }
 
 void HttpFetcher::Cancel(int request_id) {
-  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
-  HttpFetcherTask* task = FindTask(request_id);
-  if (task == nullptr) {
-    return;
-  }
-
-  task->Stop();
-
-  // release task
-  network_task_runner_->PostTask(
+  GetTaskRunner()->PostTask(
       FROM_HERE,
-      base::Bind(&HttpFetcher::OnTaskComplete,
+      base::Bind(&HttpFetcher::StartCancel,
                  weak_factory_.GetWeakPtr(),
                  request_id));
 }
 
+void HttpFetcher::StartCancel(int request_id) {
+  HttpFetcherTask* task = FindTask(request_id);
+  if (task == nullptr) {
+    return;
+  }
+  task->Stop();
+  StartRelease(request_id);
+}
+
+void HttpFetcher::StartRelease(int request_id) {
+  if (request_map_.find(request_id) == request_map_.end()) {
+    return;
+  }
+  request_map_.erase(request_id);
+}
+
 void HttpFetcher::CancelAll() {
-  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
-  while (!task_map_.empty()) {
-    (task_map_.begin()->second.get())->Stop();
+  while (!request_map_.empty()) {
+    (request_map_.begin()->second.get())->Stop();
   }
 }
 
 HttpFetcherTask* HttpFetcher::FindTask(int request_id) {
-  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
-  TaskMap::iterator it = task_map_.find(request_id);
-  return it != task_map_.end() ? it->second.get() : nullptr;
+  RequestMap::iterator it = request_map_.find(request_id);
+  return it != request_map_.end() ? it->second.get() : nullptr;
 }
 
-void HttpFetcher::OnTaskComplete(int request_id) {
-  DCHECK(network_task_runner_->RunsTasksOnCurrentThread());
-  if (task_map_.find(request_id) == task_map_.end()) {
-    return;
+void HttpFetcher::ReleaseRequest(int request_id) {
+  GetTaskRunner()->PostTask(
+      FROM_HERE,
+      base::Bind(&HttpFetcher::StartRelease,
+                 weak_factory_.GetWeakPtr(),
+                 request_id));
+}
+
+base::SingleThreadTaskRunner* HttpFetcher::GetTaskRunner() {
+  if (base::ThreadTaskRunnerHandle::IsSet()) {
+    return base::ThreadTaskRunnerHandle::Get().get();
   }
-  task_map_.erase(request_id);
-}
-
-HttpRequestContextGetter* HttpFetcher::context_getter() {
-  return http_request_context_getter_.get();
+  return context_getter_->GetNetworkTaskRunner().get();
 }
 
 } // namespace stellite

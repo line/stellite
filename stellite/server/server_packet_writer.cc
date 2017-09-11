@@ -71,7 +71,7 @@ WriteResult ServerPacketWriter::WritePacket(
   scoped_refptr<StringIOBuffer> buf(
       new StringIOBuffer(std::string(buffer, buf_len)));
   DCHECK(!IsWriteBlocked());
-  DCHECK(!callback_.is_null());
+  // DCHECK(!callback_.is_null());
   int rv;
   if (buf_len <= static_cast<size_t>(std::numeric_limits<int>::max())) {
     rv = socket_->SendTo(

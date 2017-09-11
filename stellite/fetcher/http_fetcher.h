@@ -44,36 +44,37 @@ class STELLITE_EXPORT HttpFetcher {
 
   int Request(const HttpRequest& request, int64_t timeout,
               base::WeakPtr<HttpFetcherTask::Visitor> delegate);
-
   bool AppendChunkToUpload(int request_id, const std::string& data, bool fin);
-
-  void CancelAll();
   void Cancel(int request_id);
 
-  // release task when it was done
-  void OnTaskComplete(int request_id);
+  void CancelAll();
 
-  HttpRequestContextGetter* context_getter();
+  // release task when it was done
+  void ReleaseRequest(int request_id);
+
+  HttpRequestContextGetter* context_getter() { return context_getter_.get(); }
 
  private:
-  typedef std::map<int, std::unique_ptr<HttpFetcherTask>> TaskMap;
+  typedef std::map<int, std::unique_ptr<HttpFetcherTask>> RequestMap;
 
   HttpFetcherTask* FindTask(int request_id);
 
+  // start request that work on base::SingleThreadTaskRunner
   void StartRequest(int request_id, const HttpRequest& http_request,
                     int64_t timeout,
                     base::WeakPtr<HttpFetcherTask::Visitor> delegate);
-
   void StartAppendChunkToUpload(int request_id, const std::string& data,
                                 bool fin);
+  void StartCancel(int request_id);
+  void StartRelease(int request_id);
 
-  TaskMap task_map_; // task container
-
-  scoped_refptr<HttpRequestContextGetter> http_request_context_getter_;
+  // select TaskRunner between current thread or network thread
+  base::SingleThreadTaskRunner* GetTaskRunner();
 
   int last_request_id_;
+  RequestMap request_map_; // task container
 
-  scoped_refptr<base::SingleThreadTaskRunner> network_task_runner_;
+  scoped_refptr<HttpRequestContextGetter> context_getter_;
 
   base::WeakPtrFactory<HttpFetcher> weak_factory_;
 

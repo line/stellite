@@ -410,7 +410,11 @@ void HttpFetcherCore::OnReceivedRedirect(URLRequest* request,
     total_received_bytes_ += request_->GetTotalReceivedBytes();
     response_info_.reset(new HttpResponseInfo(request->response_info()));
 
-    InformDelegateFetchIsComplete();
+    if (stream_response_) {
+      InformDelegateFetchStream(nullptr);
+    } else {
+      InformDelegateFetchIsComplete();
+    }
 
     int result = request->Cancel();
     OnReadCompleted(request, result);
@@ -521,7 +525,6 @@ HttpFetcherCore::~HttpFetcherCore() {
 
 void HttpFetcherCore::StartOnIOThread() {
   DCHECK(network_task_runner_->BelongsToCurrentThread());
-
   // Create ChunkedUploadDataStream, if needed, so the consumer can start
   // appending data.  Have to do it here because StartURLRequest() may be called
   // asynchonously.
@@ -713,15 +716,23 @@ void HttpFetcherCore::CancelURLRequest(int error) {
 void HttpFetcherCore::OnCompletedURLRequest(
     base::TimeDelta backoff_delay) {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
-
   // Save the status and backoff_delay so that delegates can read it.
   if (delegate_) {
     backoff_delay_ = backoff_delay;
-    InformDelegateFetchIsComplete();
+    InformDelegateFetchIsCompleteInDelegateThread();
   }
 }
 
 void HttpFetcherCore::InformDelegateFetchIsComplete() {
+  delegate_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(
+          &HttpFetcherCore::InformDelegateFetchIsCompleteInDelegateThread,
+          this));
+
+}
+
+void HttpFetcherCore::InformDelegateFetchIsCompleteInDelegateThread() {
   DCHECK(delegate_task_runner_->BelongsToCurrentThread());
   if (delegate_) {
     delegate_->OnFetchComplete(fetcher_, response_info_.get());
@@ -769,8 +780,9 @@ void HttpFetcherCore::InformDelegateUpdateFetchTimeout() {
 }
 
 void HttpFetcherCore::InformDelegateUpdateFetchTimeoutInDelegateThread() {
+  DCHECK(delegate_task_runner_->BelongsToCurrentThread());
   if (delegate_) {
-    delegate_->OnUpdateFetchTimeout();
+    delegate_->ResetTimeout();
   }
 }
 

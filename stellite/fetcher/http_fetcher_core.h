@@ -190,6 +190,7 @@ class HttpFetcherCore : public base::RefCountedThreadSafe<HttpFetcherCore>,
   void CancelURLRequest(int error);
   void OnCompletedURLRequest(base::TimeDelta backoff_delay);
   void InformDelegateFetchIsComplete();
+  void InformDelegateFetchIsCompleteInDelegateThread();
   void NotifyMalformedContent();
   void DidFinishWriting(int result);
   void RetryOrCompleteUrlFetch();

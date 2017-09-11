@@ -65,22 +65,30 @@ component("stellite_quic_server_base") {
     "process/daemon.h",
     "server/parse_util.cc",
     "server/parse_util.h",
-    "server/proxy_stream.cc",
-    "server/proxy_stream.h",
+#    "server/proxy_stream.cc",
+#    "server/proxy_stream.h",
     "server/quic_proxy_dispatcher.cc",
     "server/quic_proxy_dispatcher.h",
     "server/quic_proxy_server.cc",
     "server/quic_proxy_server.h",
+    "server/quic_proxy_session.cc",
+    "server/quic_proxy_session.h",
+    "server/quic_proxy_stream.cc",
+    "server/quic_proxy_stream.h",
     "server/quic_proxy_worker.cc",
     "server/quic_proxy_worker.h",
+    "server/quic_server_session.cc",
+    "server/quic_server_session.h",
+    "server/quic_server_stream.cc",
+    "server/quic_server_stream.h",
     "server/server_config.cc",
     "server/server_config.h",
     "server/server_packet_writer.cc",
     "server/server_packet_writer.h",
     "server/server_per_connection_packet_writer.cc",
     "server/server_per_connection_packet_writer.h",
-    "server/server_session.cc",
-    "server/server_session.h",
+#    "server/server_session.cc",
+#    "server/server_session.h",
     "server/server_session_helper.cc",
     "server/server_session_helper.h",
     "socket/quic_udp_server_socket.cc",
@@ -219,6 +227,14 @@ component("stellite_client_binder") {
     "stub/client_binder.cc",
   ]
 
+  defines = [
+    "STELLITE_IMPLEMENTATION",
+  ]
+
+  if (!is_win) {
+    defines += [ "COMPONENT_BUILD" ]
+  }
+
   deps = [
     "//base",
     "//build/config/sanitizers:deps",
@@ -235,16 +251,31 @@ if (!is_ios && !is_android) {
   test("stellite_unittests") {
     sources = [
       "bin/run_all_unittests.cc",
-      "fetcher/http_fetcher_quic_unittest.cc",
-      "server/quic_proxy_server_unittest.cc",
+      "server/quic_proxy_stream_test.cc",
+      "server/test_tools/crypto_test_utils.cc",
+      "server/test_tools/crypto_test_utils_chromium.cc",
+      "server/test_tools/mock_clock.cc",
+      "server/test_tools/mock_quic_server_session_visitor.cc",
+      "server/test_tools/mock_random.cc",
+      "server/test_tools/quic_connection_peer.cc",
+      "server/test_tools/quic_framer_peer.cc",
+      "server/test_tools/quic_packet_generator_peer.cc",
+      "server/test_tools/quic_sent_packet_manager_peer.cc",
+      "server/test_tools/quic_test_utils.cc",
+      "server/test_tools/simple_http_server.cc",
+      "server/test_tools/simple_http_server.h",
+      "server/test_tools/simple_quic_framer.cc",
       "test/stellite_test_suite.cc",
       "test/stellite_test_suite.h",
+      #"fetcher/http_fetcher_quic_unittest.cc",
+      #"server/quic_proxy_server_unittest.cc",
     ]
 
     deps = [
       "//base",
       "//gin",
       "//net",
+      "//net:http_server",
       "//net:test_support",
       "//testing/gtest",
       ":stellite_http_client",

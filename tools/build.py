@@ -22,7 +22,7 @@ BUILD = 'build'
 CHROMIUM = 'chromium'
 CHROMIUM_PATH = 'chromium_path'
 CLEAN = 'clean'
-CLIENT_BINDER = 'client_binder'
+STELLITE_CLIENT_BINDER = 'stellite_client_binder'
 CONFIGURE = 'configure'
 DARWIN = 'darwin'
 EXECUTABLE = 'executable'
@@ -373,7 +373,7 @@ def option_parser(args):
 
   parser.add_argument('--target',
                       choices=[STELLITE_QUIC_SERVER_BIN,
-                               CLIENT_BINDER,
+                               STELLITE_CLIENT_BINDER,
                                SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN,
                                STELLITE_HTTP_CLIENT,
                                STELLITE_HTTP_CLIENT_BIN,
@@ -396,7 +396,8 @@ def option_parser(args):
   parser.add_argument('--node-module-version', choices=NODE_VERSIONS.keys(),
                       default=DEFAULT_NODE_MODULE_VERSION)
 
-  parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST], default=BUILD)
+  parser.add_argument('action', choices=[CLEAN, BUILD, UNITTEST],
+                      default=BUILD)
   options = parser.parse_args(args)
 
   if options.target in (STELLITE_QUIC_SERVER_BIN, STELLITE_HTTP_CLIENT_BIN,
@@ -565,7 +566,8 @@ class BuildObject(object):
     """return source code directory for build.
 
     it was getter from chromium essential code and code"""
-    return os.path.join(self.root_path, 'build_{}'.format(self.target_platform))
+    return os.path.join(self.root_path,
+                        'build_{}'.format(self.target_platform))
 
   @property
   def buildspace_src_path(self):
@@ -592,7 +594,8 @@ class BuildObject(object):
   def build_output_path(self):
     """return object file path that store a compiled files"""
     out_dir = 'out_{}'.format(self.target_platform)
-    return os.path.join(self.buildspace_src_path, out_dir)
+    build = 'debug' if self.debug else 'release'
+    return os.path.join(self.buildspace_src_path, out_dir, build)
 
   @property
   def stellite_path(self):
@@ -676,6 +679,15 @@ class BuildObject(object):
     include_path = os.path.join(self.stellite_path, 'include')
     return map(lambda x: os.path.join(include_path, x),
                os.listdir(include_path))
+
+  @property
+  def buildspace_ycm_extra_config_path(self):
+    return os.path.join(self.buildspace_src_path, 'tools', 'vim',
+                        'chromium.ycm_extra_conf.py')
+
+  @property
+  def target_ycm_extra_config_path(self):
+    return os.path.join(self.root_path, '.ycm_extra_conf.py')
 
   @property
   def node_module_version(self):
@@ -942,6 +954,19 @@ class BuildObject(object):
 
     print('copy stellite files...')
     self.copy_stellite_code()
+
+    print('copya stellite build fakefiles ...')
+    self.copy_ycm_config_files()
+
+  def copy_ycm_config_files(self):
+    """copy ycm config file"""
+    # sync .ycm_extra_config
+    if os.path.exists(self.target_ycm_extra_config_path):
+      os.remove(self.target_ycm_extra_config_path)
+    command = ['ln', '-s',
+               self.buildspace_ycm_extra_config_path,
+               self.target_ycm_extra_config_path]
+    self.execute_with_error(command)
 
   def copy_stellite_code(self):
     """copy stellite code to buildspace"""
