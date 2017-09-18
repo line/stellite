@@ -20,6 +20,7 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/strings/string_number_conversions.h"
 #include "stellite/include/http_client.h"
 #include "stellite/include/http_client_context.h"
 #include "stellite/include/http_request.h"
@@ -94,8 +95,13 @@ void SessionResponseDelegate::OnHttpError(int request_id, int error_code,
 
 class STELLITE_EXPORT HttpSession::SessionImpl {
  public:
-  SessionImpl(HttpSession::Params& params, HttpSessionVisitor* visitor);
+  SessionImpl();
   ~SessionImpl();
+
+  bool Start(HttpSessionVisitor* visitor);
+  bool AddQuicHostToDirectRequestOn(const std::string& hostname, uint16_t port);
+  bool UsingQuic(bool use);
+  bool UsingHttp2(bool use);
 
   int Request(HttpSession::RequestMethod method, const std::string& url,
               const std::string& raw_header, const std::string& body,
@@ -113,8 +119,9 @@ class STELLITE_EXPORT HttpSession::SessionImpl {
   }
 
  private:
-  void InitInternal(HttpSession::Params& params);
   void TeardownInternal();
+
+  HttpClientContext::Params context_params_;
 
   HttpSessionVisitor* visitor_;
   std::unique_ptr<HttpClientContext> context_;
@@ -123,15 +130,61 @@ class STELLITE_EXPORT HttpSession::SessionImpl {
   HttpClient* http_client_;
 };
 
-HttpSession::SessionImpl::SessionImpl(HttpSession::Params& params,
-                                      HttpSessionVisitor* visitor)
-    : visitor_(visitor),
-      response_delegate_(new SessionResponseDelegate(visitor)) {
-  InitInternal(params);
+HttpSession::SessionImpl::SessionImpl() {
 }
 
 HttpSession::SessionImpl::~SessionImpl() {
   TeardownInternal();
+}
+
+bool HttpSession::SessionImpl::Start(HttpSessionVisitor* visitor) {
+  if (context_.get()) {
+    LOG(ERROR) << "context already started";
+    return false;
+  }
+
+  context_.reset(new HttpClientContext(context_params_));
+  if (!context_->Initialize()) {
+    LOG(ERROR) << "context initialize are failed";
+    return false;
+  }
+
+  // create internal client
+  response_delegate_.reset(new SessionResponseDelegate(visitor));
+  http_client_ = context_->CreateHttpClient(response_delegate_.get());
+
+  return true;
+}
+
+bool HttpSession::SessionImpl::AddQuicHostToDirectRequestOn(
+    const std::string& hostname, uint16_t port) {
+  if (context_.get()) {
+    return false;
+  }
+
+  std::string quic_origin = hostname + ":" +
+      base::IntToString(static_cast<int>(port));
+  context_params_.origins_to_force_quic_on.push_back(quic_origin);
+
+  return true;
+}
+
+bool HttpSession::SessionImpl::UsingQuic(bool using_quic) {
+  if (context_.get()) {
+    return false;
+  }
+
+  context_params_.using_quic = using_quic;
+  return true;
+}
+
+bool HttpSession::SessionImpl::UsingHttp2(bool using_http2) {
+  if (context_.get()) {
+    return false;
+  }
+
+  context_params_.using_http2 = using_http2;
+  return true;
 }
 
 int HttpSession::SessionImpl::Request(HttpSession::RequestMethod method,
@@ -186,21 +239,6 @@ bool HttpSession::SessionImpl::AppendChunkToUpload(int request_id,
   return http_client_->AppendChunkToUpload(request_id, chunk, is_last);
 }
 
-void HttpSession::SessionImpl::InitInternal(HttpSession::Params& params) {
-  HttpClientContext::Params context_params;
-  context_params.using_http2 = params.using_http2;
-  context_params.using_quic = params.using_quic;
-
-  context_.reset(new HttpClientContext(context_params));
-  if (!context_->Initialize()) {
-    LOG(ERROR) << "context initialize are failed";
-    return;
-  }
-
-  // create internal client
-  http_client_ = context_->CreateHttpClient(response_delegate_.get());
-}
-
 void HttpSession::SessionImpl::TeardownInternal() {
   if (!context_.get()) {
     LOG(ERROR) << "context is not initialized error";
@@ -216,10 +254,11 @@ void HttpSession::SessionImpl::TeardownInternal() {
   }
 
   http_client_ = nullptr;
+  context_.reset();
 }
 
-HttpSession::HttpSession(Params params, HttpSessionVisitor* visitor)
-    : impl_(new SessionImpl(params, visitor)) {
+HttpSession::HttpSession()
+    : impl_(new SessionImpl()) {
 }
 
 HttpSession::~HttpSession() {
@@ -227,6 +266,24 @@ HttpSession::~HttpSession() {
     delete impl_;
     impl_ = nullptr;
   }
+}
+
+bool HttpSession::Start(HttpSessionVisitor* visitor) {
+  return impl_->Start(visitor);
+}
+
+bool HttpSession::AddQuicHostToDirectRequestOn(const char* hostname, size_t len,
+                                               uint16_t port) {
+  std::string origin(hostname, len);
+  return impl_->AddQuicHostToDirectRequestOn(origin, port);
+}
+
+bool HttpSession::UsingHttp2(bool using_http2) {
+  return impl_->UsingHttp2(using_http2);
+}
+
+bool HttpSession::UsingQuic(bool using_quic) {
+  return impl_->UsingQuic(using_quic);
 }
 
 int HttpSession::Request(RequestMethod method,
@@ -249,7 +306,9 @@ bool HttpSession::AppendChunkToUpload(int request_id, const char* chunk,
 }
 
 void HttpSession::CancelAll() {
-  impl_->client_context()->CancelAll();
+  if (impl_ && impl_->client_context()) {
+    impl_->client_context()->CancelAll();
+  }
 }
 
 #if defined(ANDROID)

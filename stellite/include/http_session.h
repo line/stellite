@@ -17,6 +17,7 @@
 #define STELLITE_INCLUDE_NOSTL_CLIENT_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "stellite_export.h"
 
@@ -68,13 +69,13 @@ class STELLITE_EXPORT HttpSession {
     HTTP_PUT,
   };
 
-  struct Params {
-    bool using_http2;
-    bool using_quic;
-  };
-
-  explicit HttpSession(Params params, HttpSessionVisitor* visitor);
+  HttpSession();
   virtual ~HttpSession();
+
+  bool Start(HttpSessionVisitor* visitor);
+  bool AddQuicHostToDirectRequestOn(const char* hostname, size_t len, uint16_t port);
+  bool UsingHttp2(bool use);
+  bool UsingQuic(bool use);
 
   // caution: raw_header delimiter must \r\n
   // if chunked_upload are true body and body_len are ignored
