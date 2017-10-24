@@ -51,6 +51,7 @@ void ResponseVisitor::OnHttpResponse(int request_id, int response_code,
                                      const char* raw_body, size_t body_len,
                                      int connection_info) {
   LOG(INFO) << std::endl << "response code: " << response_code;
+  LOG(INFO) << "connection info: " << connection_info;
 
   std::string headers(raw_header, header_len);
   for (size_t from = 0; from < headers.size();) {
@@ -117,13 +118,13 @@ int main(int argc, char* argv[]) {
   settings.logging_dest = logging::LOG_TO_SYSTEM_DEBUG_LOG;
   CHECK(logging::InitLogging(settings));
 
+  std::unique_ptr<stellite::HttpSession> session(new stellite::HttpSession());
+  session->UsingQuic(true);
+  session->UsingHttp2(true);
+
   std::unique_ptr<stellite::ResponseVisitor> visitor(
       new stellite::ResponseVisitor());
-  stellite::HttpSession::Params params;
-  params.using_http2 = true;
-  params.using_quic = true;
-  std::unique_ptr<stellite::HttpSession> session(
-      new stellite::HttpSession(params, visitor.get()));
+  session->Start(visitor.get());
 
   while (true) {
     std::string command;

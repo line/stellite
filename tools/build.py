@@ -400,7 +400,9 @@ def option_parser(args):
                       default=BUILD)
   options = parser.parse_args(args)
 
-  if options.target in (STELLITE_QUIC_SERVER_BIN, STELLITE_HTTP_CLIENT_BIN,
+  if options.target in (STELLITE_QUIC_SERVER_BIN,
+                        STELLITE_HTTP_CLIENT_BIN,
+                        STELLITE_HTTP_SESSION_BIN,
                         SIMPLE_CHUNKED_UPLOAD_CLIENT_BIN):
     options.target_type = EXECUTABLE
 
