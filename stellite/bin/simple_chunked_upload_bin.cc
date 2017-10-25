@@ -30,9 +30,6 @@
 #include "stellite/include/http_request.h"
 #include "stellite/include/http_response.h"
 
-// The url for chunked upload
-std::string FLAGS_url = "";
-
 namespace stellite {
 
 class HttpCallback : public HttpResponseDelegate {
@@ -102,11 +99,16 @@ void PrintHelpMessage() {
       "\n"
       "Options:\n"
       "-h, --help                  Show this help message and exit\n"
-      "--url                       specify the url for chunked upload\n";
+      "--url                       specify the url for chunked upload\n"
+      "--quic-host                 specify the quic direct request host\n";
   std::cout << help_str;
 }
 
 int main(int argc, char *argv[]) {
+  // The url for chunked upload
+  std::string FLAGS_url = "";
+  std::string FLAGS_quic_host = "";
+
   base::CommandLine::Init(argc, argv);
   base::CommandLine* line = base::CommandLine::ForCurrentProcess();
 
@@ -124,11 +126,19 @@ int main(int argc, char *argv[]) {
     exit(0);
   }
 
+  if (line->HasSwitch("quic-host")) {
+    FLAGS_quic_host = line->GetSwitchValueASCII("quic-host");
+  }
+
   base::AtExitManager at_exit_manager;
 
   stellite::HttpClientContext::Params params;
   params.using_quic = true;
   params.using_http2 = true;
+
+  if (FLAGS_quic_host.size()) {
+    params.origins_to_force_quic_on.push_back(FLAGS_quic_host);
+  }
 
   std::unique_ptr<stellite::HttpCallback> callback(
       new stellite::HttpCallback());

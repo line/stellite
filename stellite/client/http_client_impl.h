@@ -32,7 +32,7 @@ class HttpResponseDelegate;
 class STELLITE_EXPORT HttpClientImpl : public HttpClient,
                                        public HttpFetcherTask::Visitor {
  public:
-  HttpClientImpl(HttpFetcher* http_fetcher,
+  HttpClientImpl(HttpRequestContextGetter* context_getter,
                  HttpResponseDelegate* response_delegate);
   ~HttpClientImpl() override;
 
@@ -72,7 +72,7 @@ class STELLITE_EXPORT HttpClientImpl : public HttpClient,
                             const net::HttpResponseInfo* response_info);
   void ReleaseResponse(int request_id);
 
-  HttpFetcher* http_fetcher_;
+  std::unique_ptr<HttpFetcher> http_fetcher_;
   HttpResponseDelegate* response_delegate_;
 
   // cache response data when streaming response or upload progress

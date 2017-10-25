@@ -58,8 +58,8 @@ bool QuicProxyServer::Start(size_t worker_size,
     fetch_thread->StartWithOptions(io_options);
 
     QuicProxyWorker* worker = new QuicProxyWorker(
-        dispatch_thread->task_runner(),
         fetch_thread->task_runner(),
+        dispatch_thread->task_runner(),
         quic_address,
         quic_config_,
         server_config_,
@@ -76,12 +76,11 @@ bool QuicProxyServer::Start(size_t worker_size,
       return false;
     }
 
-    worker->Start();
-
     dispatch_thread_list_.push_back(base::WrapUnique(dispatch_thread));
     fetch_thread_list_.push_back(base::WrapUnique(fetch_thread));
-
     worker_list_.push_back(base::WrapUnique(worker));
+
+    worker->Start();
   }
 
   return true;

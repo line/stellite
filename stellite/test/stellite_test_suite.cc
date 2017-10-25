@@ -18,11 +18,12 @@ StelliteTestSuite::~StelliteTestSuite() {}
 
 void StelliteTestSuite::Initialize() {
   TestSuite::Initialize();
+
   InitializeInternal();
 }
 
 void StelliteTestSuite::Shutdown() {
-  message_loop_.reset();
+  TeardownInternal();
 
   TestSuite::Shutdown();
 }
@@ -31,8 +32,15 @@ void StelliteTestSuite::InitializeInternal() {
   network_change_notifier_.reset(net::NetworkChangeNotifier::CreateMock());
 
   host_resolver_proc_ = new net::RuleBasedHostResolverProc(NULL);
-  scoped_host_resolver_proc_.Init(host_resolver_proc_.get());
   host_resolver_proc_->AddRule("*", "127.0.0.1");
+
+  scoped_host_resolver_proc_.Init(host_resolver_proc_.get());
 
   message_loop_.reset(new base::MessageLoopForIO());
 }
+
+void StelliteTestSuite::TeardownInternal() {
+  network_change_notifier_.reset();
+  message_loop_.reset();
+}
+

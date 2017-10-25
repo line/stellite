@@ -58,9 +58,9 @@ QuicProxyWorker::QuicProxyWorker(
       synchronous_read_count_(0),
       read_buffer_(new IOBufferWithSize(kReadBufferSize)),
       weak_factory_(this) {
-      CHECK(dispatch_continuity_ >= 1 && dispatch_continuity_ <= 32) <<
-          "keep dispatch_continuity range [1, 32]";
-    }
+  CHECK(dispatch_continuity_ >= 1 && dispatch_continuity_ <= 64) <<
+      "keep dispatch_continuity range [1, 64]";
+}
 
 QuicProxyWorker::~QuicProxyWorker() {}
 
