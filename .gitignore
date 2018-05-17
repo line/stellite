@@ -22,3 +22,8 @@
 
 # etc
 *.swp
+
+
+**/.gradle/**
+**/.idea/**
+**/.externalNativeBuild/**
