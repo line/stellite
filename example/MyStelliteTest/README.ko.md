@@ -21,7 +21,7 @@
 - 요청/응답의 정보들의 확인은 logcat을 확인하도록 한다.
 
 ## libstellite_http_client.so 를 빌드
-     - https://github.com/line/stellite/blob/master/BUILD.md
+- https://github.com/line/stellite/blob/master/BUILD.md
 
 ```bash
 ./tools/build.py --target-platform=android --target stellite_http_client --target-type shared_library build
