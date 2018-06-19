@@ -10,7 +10,7 @@
     - [chromium 에서 빌드된 jar 파일들 복사](#chromium-에서-빌드된-jar-파일들-복사)
     - [NDK 빌드스크립트 작성](#ndk-빌드스크립트-작성)
     - [stellite 초기화 코드 작성](#stellite-초기화-코드-작성)
-    - [stetlite quic 요청/응답 코드 작성](#stetlite-quic-요청응답-코드-작성)
+    - [stellite quic 요청/응답 코드 작성](#stellite-quic-요청응답-코드-작성)
     - [logcat으로 결과확인](#logcat으로-결과확인)
 
 <!-- /TOC -->
@@ -85,7 +85,7 @@ build_android/src/out_android_armv7/obj/lib.java/base/base_java.jar
 \MyStelliteTest\app\src\main\cpp\native-lib.cpp
 ```
 
-## stetlite quic 요청/응답 코드 작성
+## stellite quic 요청/응답 코드 작성
 
 ```powershell
 \MyStelliteTest\app\src\main\cpp\native-lib.cpp
