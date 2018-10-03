@@ -84,7 +84,7 @@ void NodeHttpFetcher::Cancel(int request_id) {
 
 void NodeHttpFetcher::OnRequestComplete(int request_id) {
   DCHECK(CalledOnValidThread());
-  impl_->OnTaskComplete(request_id);
+  impl_->ReleaseRequest(request_id);
 }
 
 }  // namespace stellite
