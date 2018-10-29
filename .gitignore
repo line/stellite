@@ -27,3 +27,7 @@
 **/.gradle/**
 **/.idea/**
 **/.externalNativeBuild/**
+
+**/build_*/**
+**/third_party/**
+
